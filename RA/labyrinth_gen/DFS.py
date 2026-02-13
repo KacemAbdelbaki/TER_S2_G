@@ -10,6 +10,7 @@ class Cell:
         self.walls = [True, True, True, True]
         self.isTP = False
         self.TPCell = None
+        self.isGhost = False
 
 
 def initMap(height, width):
@@ -26,7 +27,10 @@ def print_map(grid):
         for c in range(w):
             cell = grid[r][c]
             top += "+" + ("---" if cell.walls[0] else "   ")
-            content = " @ " if getattr(cell, "isTP", False) else "   "
+            content = (
+                " ¥ " if getattr(cell, "isGhost", False) else " @ " if getattr(cell, "isTP", False) else "   "
+            )
+
             mid += ("|" if cell.walls[3] else " ") + content
         top += "+\n"
         mid += ("|" if grid[r][-1].walls[1] else " ") + "\n"
@@ -109,8 +113,10 @@ def ghost_room_init(map):
     # map[y][x].walls = [up, right, down, left]
     map[middleY][WIDTH - 2].visited = True
     map[middleY][WIDTH - 2].walls = [True, False, True, True]
+    map[middleY][WIDTH - 2].isGhost = True
     map[middleY][WIDTH - 1].visited = True
     map[middleY][WIDTH - 1].walls = [False, False, True, False]
+    map[middleY][WIDTH - 1].isGhost = True
     return map
 
 
