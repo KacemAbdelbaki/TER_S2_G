@@ -1,5 +1,6 @@
 import copy
 import random
+import json
 
 
 class Cell:
@@ -15,7 +16,7 @@ class Cell:
 
 def initMap(height, width):
     map = [[Cell(r, c) for c in range(width)] for r in range(height)]
-    return ghost_room_init(map)
+    return ghost_room_init(map, height, width)
 
 
 def print_map(grid):
@@ -28,7 +29,9 @@ def print_map(grid):
             cell = grid[r][c]
             top += "+" + ("---" if cell.walls[0] else "   ")
             content = (
-                " ¥ " if getattr(cell, "isGhost", False) else " @ " if getattr(cell, "isTP", False) else "   "
+                " ¥ "
+                if getattr(cell, "isGhost", False)
+                else " @ " if getattr(cell, "isTP", False) else "   "
             )
 
             mid += ("|" if cell.walls[3] else " ") + content
@@ -67,6 +70,29 @@ def DFS(grid, r, c):
             cell.walls[w_cur] = False
             grid[nr][nc].walls[w_nei] = False
             DFS(grid, nr, nc)
+
+
+def add_cycles(grid, p=0.08):
+    H = len(grid)
+    W = len(grid[0]) if H else 0
+    for r in range(H):
+        for c in range(W):
+            # right neighbor
+            if c + 1 < W:
+                cell = grid[r][c]
+                nei = grid[r][c + 1]
+                # if wall exists between them, randomly knock it down
+                if cell.walls[1] and nei.walls[3] and random.random() < p:
+                    cell.walls[1] = False
+                    nei.walls[3] = False
+
+            # down neighbor
+            if r + 1 < H:
+                cell = grid[r][c]
+                nei = grid[r + 1][c]
+                if cell.walls[2] and nei.walls[0] and random.random() < p:
+                    cell.walls[2] = False
+                    nei.walls[0] = False
 
 
 def mirror_map(grid):
@@ -108,15 +134,15 @@ def mirror_map(grid):
     return new
 
 
-def ghost_room_init(map):
-    middleY = HEIGHT // 2
+def ghost_room_init(map, height, width):
+    middleY = height // 2
     # map[y][x].walls = [up, right, down, left]
-    map[middleY][WIDTH - 2].visited = True
-    map[middleY][WIDTH - 2].walls = [True, False, True, True]
-    map[middleY][WIDTH - 2].isGhost = True
-    map[middleY][WIDTH - 1].visited = True
-    map[middleY][WIDTH - 1].walls = [False, False, True, False]
-    map[middleY][WIDTH - 1].isGhost = True
+    map[middleY][width - 2].visited = True
+    map[middleY][width - 2].walls = [True, False, True, True]
+    map[middleY][width - 2].isGhost = True
+    map[middleY][width - 1].visited = True
+    map[middleY][width - 1].walls = [False, False, True, False]
+    map[middleY][width - 1].isGhost = True
     return map
 
 
@@ -163,23 +189,210 @@ def add_TP_Points(map):
     cell2.TPCell = cell1
 
 
+def maze_benchmarks(grid):
+    """Return (num_cycles, num_hallways, hallway_lengths).
+
+    - num_cycles: cyclomatic number = E - V + C
+    - num_hallways: count of connected components formed by degree-2 cells
+    - hallway_lengths: list of sizes (number of cells) for each hallway
+    """
+    H = len(grid)
+    W = len(grid[0]) if H else 0
+
+    def idx(r, c):
+        return r * W + c
+
+    # build adjacency for every non-None cell
+    adj = {}
+    for r in range(H):
+        for c in range(W):
+            cell = grid[r][c]
+            if cell is None:
+                continue
+            v = idx(r, c)
+            neighs = []
+            if not cell.walls[0] and r - 1 >= 0:
+                neighs.append(idx(r - 1, c))
+            if not cell.walls[1] and c + 1 < W:
+                neighs.append(idx(r, c + 1))
+            if not cell.walls[2] and r + 1 < H:
+                neighs.append(idx(r + 1, c))
+            if not cell.walls[3] and c - 1 >= 0:
+                neighs.append(idx(r, c - 1))
+            adj[v] = neighs
+
+    V = len(adj)
+    E = sum(len(n) for n in adj.values()) // 2
+
+    # connected components over adj keys
+    visited = set()
+    components = 0
+    for v in adj:
+        if v in visited:
+            continue
+        components += 1
+        stack = [v]
+        while stack:
+            u = stack.pop()
+            if u in visited:
+                continue
+            visited.add(u)
+            for w in adj.get(u, ()):
+                if w not in visited:
+                    stack.append(w)
+
+    num_cycles = E - V + components
+
+    # hallway detection: nodes with degree == 2
+    degree2 = {v for v, n in adj.items() if len(n) == 2}
+    visited2 = set()
+    hallway_lengths = []
+    for v in degree2:
+        if v in visited2:
+            continue
+        size = 0
+        stack = [v]
+        while stack:
+            u = stack.pop()
+            if u in visited2:
+                continue
+            visited2.add(u)
+            size += 1
+            for w in adj.get(u, ()):
+                if w in degree2 and w not in visited2:
+                    stack.append(w)
+        hallway_lengths.append(size)
+
+    num_hallways = len(hallway_lengths)
+    return num_cycles, num_hallways, hallway_lengths
+
+
+def maze_to_json(grid):
+    H = len(grid)
+    W = len(grid[0]) if H else 0
+    rows = []
+    for r in range(H):
+        row = []
+        for c in range(W):
+            cell = grid[r][c]
+            obj = {
+                "x": r,
+                "y": c,
+                "walls": list(cell.walls),
+                "isGhost": bool(getattr(cell, "isGhost", False)),
+                "isTP": bool(getattr(cell, "isTP", False)),
+                "TP": None,
+            }
+            if (
+                getattr(cell, "isTP", False)
+                and getattr(cell, "TPCell", None) is not None
+            ):
+                tp = cell.TPCell
+                # TPCell may be a reference to an object with x,y set
+                obj["TP"] = {"x": getattr(tp, "x", None), "y": getattr(tp, "y", None)}
+            row.append(obj)
+        rows.append(row)
+    out = {"height": H, "width": W, "rows": rows}
+    return json.dumps(out)
+
+
+def maze_from_json(source):
+    # load JSON data
+    if isinstance(source, str):
+        try:
+            data = json.loads(source)
+        except Exception:
+            with open(source, "r", encoding="utf-8") as f:
+                data = json.load(f)
+    elif isinstance(source, dict):
+        data = source
+    else:
+        raise TypeError("source must be JSON string, dict, or filename")
+
+    H = data.get("height")
+    W = data.get("width")
+    rows = data.get("rows")
+    if H is None or W is None or rows is None:
+        raise ValueError("Invalid maze JSON: missing height/width/rows")
+
+    # create empty grid
+    grid = [[Cell(r, c) for c in range(W)] for r in range(H)]
+
+    # populate properties
+    for r in range(H):
+        for c in range(W):
+            obj = rows[r][c]
+            cell = grid[r][c]
+            cell.walls = list(obj.get("walls", [True, True, True, True]))
+            cell.isGhost = bool(obj.get("isGhost", False))
+            cell.isTP = bool(obj.get("isTP", False))
+            # TPCell will be linked after all cells are created
+            cell.TPCell = None
+
+    # link teleport pairs if present
+    for r in range(H):
+        for c in range(W):
+            obj = rows[r][c]
+            tp = obj.get("TP")
+            if tp:
+                tx, ty = tp.get("x"), tp.get("y")
+                if tx is not None and ty is not None:
+                    # guard indices
+                    if 0 <= tx < H and 0 <= ty < W:
+                        grid[r][c].TPCell = grid[tx][ty]
+
+    return grid
+
+
+def full_maze(height, width):
+    map = initMap(height, width)
+
+    # DFS
+    map_dfs = [[copy.deepcopy(cell) for cell in row[:]] for row in map]
+    # choose a start cell that's not inside the ghost room
+    start_r = random.randint(0, height - 1)
+    start_c = random.randint(0, width - 1)
+    while map_dfs[start_r][start_c].visited:
+        start_r = random.randint(0, height - 1)
+        start_c = random.randint(0, width - 1)
+    DFS(map_dfs, start_r, start_c)
+    # create random cycles (destroy random walls)
+    add_cycles(map_dfs, p=0.25)
+    map = [[copy.deepcopy(cell) for cell in row[:-1]] for row in map_dfs]
+    map = mirror_map(map)
+    map = insert_midle_column(map_dfs, map)
+    for _ in range(2):
+        add_TP_Points(map)
+
+    j = maze_to_json(map)
+    return j
+
+
 if __name__ == "__main__":
-    HEIGHT = 5
-    WIDTH = 6
+    HEIGHT = 10
+    WIDTH = 12
     map = initMap(HEIGHT, WIDTH)
 
     # DFS
     map_dfs = [[copy.deepcopy(cell) for cell in row[:]] for row in map]
-    # choose a start cell that's not inside the ghost room (ghost_room_init marks those as visited)
+    # choose a start cell that's not inside the ghost room
     start_r = random.randint(0, HEIGHT - 1)
     start_c = random.randint(0, WIDTH - 1)
     while map_dfs[start_r][start_c].visited:
         start_r = random.randint(0, HEIGHT - 1)
         start_c = random.randint(0, WIDTH - 1)
     DFS(map_dfs, start_r, start_c)
+    # create random cycles (destroy random walls)
+    add_cycles(map_dfs, p=0.25)
     map = [[copy.deepcopy(cell) for cell in row[:-1]] for row in map_dfs]
     map = mirror_map(map)
     map = insert_midle_column(map_dfs, map)
     for _ in range(2):
         add_TP_Points(map)
-    print_map(map)
+
+    cycles, num_hallways, hallway_lengths = maze_benchmarks(map)
+    print("cycles:", cycles)
+    print("hallways:", num_hallways)
+
+    j = maze_to_json(map)
+    print_map(maze_from_json(j))
