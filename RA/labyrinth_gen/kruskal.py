@@ -1,17 +1,32 @@
+"""
+kruskal.py - Kruskal's algorithm for maze generation.
+
+Uses shared utilities from common.py.
+Provides:
+    - DisjointSet                   - Union-Find data structure
+    - kruskal_algorithm(grid, steps=None) - spanning-tree carving
+    - full_maze(height, width, record_steps=False) - complete pipeline → JSON
+"""
+
 import copy
 import random
 
+from common import (
+    Cell,
+    initMap,
+    add_cycles,
+    mirror_map,
+    insert_middle_column,
+    add_TP_Points,
+    maze_to_json,
+    maze_from_json,
+    print_map,
+)
 
-class Cell:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.visited = False
-        self.walls = [True, True, True, True]  # [Up, Right, Down, Left]
-        self.isTP = False
-        self.TPCell = None
-        self.isGhost = False
 
+# ---------------------------------------------------------------------------
+# Union-Find
+# ---------------------------------------------------------------------------
 
 class DisjointSet:
     def __init__(self, n):
@@ -24,35 +39,39 @@ class DisjointSet:
         return self.parent[i]
 
     def union(self, i, j):
-        root_i = self.find(i)
-        root_j = self.find(j)
-        if root_i != root_j:
-            self.parent[root_i] = root_j
+        ri, rj = self.find(i), self.find(j)
+        if ri != rj:
+            self.parent[ri] = rj
             return True
         return False
 
 
-def kruskal_algorithm(grid):
+# ---------------------------------------------------------------------------
+# Algorithm
+# ---------------------------------------------------------------------------
+
+def kruskal_algorithm(grid, steps=None):
+    """Generate a spanning-tree maze with Kruskal's algorithm.
+
+    If *steps* is a list, each wall-removal event is appended.
+    """
     H = len(grid)
     W = len(grid[0])
     ds = DisjointSet(H * W)
 
+    # List every internal wall as an edge
     walls = []
     for r in range(H):
         for c in range(W):
-            # Check Right neighbor
             if c + 1 < W:
-                walls.append(
-                    ((r, c), (r, c + 1), 1, 3)
-                )  # (cell1, cell2, wall_idx1, wall_idx2)
-            # Check Down neighbor
+                walls.append(((r, c), (r, c + 1), 1, 3))
             if r + 1 < H:
                 walls.append(((r, c), (r + 1, c), 2, 0))
 
+    # Pre-union ghost-room cells
     for r in range(H):
         for c in range(W):
             if grid[r][c].visited:
-                # Find adjacent visited cells and union them
                 for dr, dc in [(0, 1), (1, 0)]:
                     nr, nc = r + dr, c + dc
                     if 0 <= nr < H and 0 <= nc < W and grid[nr][nc].visited:
@@ -61,70 +80,47 @@ def kruskal_algorithm(grid):
     random.shuffle(walls)
 
     for (r1, c1), (r2, c2), w1, w2 in walls:
-        set1 = r1 * W + c1
-        set2 = r2 * W + c2
-
-        if ds.union(set1, set2):
+        if ds.union(r1 * W + c1, r2 * W + c2):
             grid[r1][c1].walls[w1] = False
             grid[r2][c2].walls[w2] = False
             grid[r1][c1].visited = True
             grid[r2][c2].visited = True
+            if steps is not None:
+                steps.append({
+                    "r1": r1, "c1": c1, "w1": w1,
+                    "r2": r2, "c2": c2, "w2": w2,
+                })
 
 
-def mirror_map(grid):
-    H, W = len(grid), len(grid[0])
-    newW = W * 2
-    new = [[None for _ in range(newW)] for _ in range(H)]
-    for r in range(H):
-        for c in range(W):
-            orig = grid[r][c]
-            left_cell = Cell(r, c)
-            left_cell.walls = orig.walls.copy()
-            left_cell.isGhost = orig.isGhost
-            new[r][c] = left_cell
+# ---------------------------------------------------------------------------
+# Full pipeline
+# ---------------------------------------------------------------------------
 
-            new_c = W + (W - 1 - c)
-            right_cell = Cell(r, new_c)
-            right_cell.walls = [
-                orig.walls[0],
-                orig.walls[3],
-                orig.walls[2],
-                orig.walls[1],
-            ]
-            right_cell.isGhost = orig.isGhost
-            new[r][new_c] = right_cell
+def full_maze(height, width, record_steps=False):
+    """Generate a complete symmetric maze and return its JSON string."""
+    grid = initMap(height, width)
+    steps = [] if record_steps else None
 
-    # Connect halves
-    for r in range(H):
-        new[r][W - 1].walls[1] = False
-        new[r][W].walls[3] = False
-    return new
+    grid_k = [[copy.deepcopy(cell) for cell in row[:]] for row in grid]
+    kruskal_algorithm(grid_k, steps)
+
+    add_cycles(grid_k, p=0.10)
+
+    half = [[copy.deepcopy(cell) for cell in row[:-1]] for row in grid_k]
+    mirrored = mirror_map(half)
+    final = insert_middle_column(grid_k, mirrored)
+
+    for _ in range(2):
+        add_TP_Points(final)
+
+    return maze_to_json(final, steps=steps)
 
 
-def print_map(grid):
-    h, w = len(grid), len(grid[0])
-    for r in range(h):
-        top, mid = "", ""
-        for c in range(w):
-            cell = grid[r][c]
-            top += "+" + ("---" if cell.walls[0] else "   ")
-            content = " ¥ " if cell.isGhost else "   "
-            mid += ("|" if cell.walls[3] else " ") + content
-        print(top + "+")
-        print(mid + ("|" if grid[r][-1].walls[1] else " "))
-    print("+" + "---+" * w)
-
+# ---------------------------------------------------------------------------
+# Standalone
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     HEIGHT, WIDTH = 5, 6
-    grid = [[Cell(r, c) for c in range(WIDTH)] for r in range(HEIGHT)]
-    middleY = HEIGHT // 2
-    grid[middleY][WIDTH - 2].visited = True
-    grid[middleY][WIDTH - 2].isGhost = True
-    grid[middleY][WIDTH - 1].visited = True
-    grid[middleY][WIDTH - 1].isGhost = True
-
-    kruskal_algorithm(grid)
-
-    final_map = mirror_map(grid)
-    print_map(final_map)
+    j = full_maze(HEIGHT, WIDTH, record_steps=False)
+    print_map(maze_from_json(j))
