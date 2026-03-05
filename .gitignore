@@ -1,0 +1,41 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+myenv/
+
+# === Java / Gradle ===
+RA/labyrinth_ui/.gradle/
+RA/labyrinth_ui/build/
+RA/labyrinth_ui/core/build/
+RA/labyrinth_ui/lwjgl3/build/
+RA/labyrinth_ui/gradle/wrapper/gradle-wrapper.jar
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+.factorypath
+*.launch
+bin/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Misc ===
+*.log
+*.tmp
