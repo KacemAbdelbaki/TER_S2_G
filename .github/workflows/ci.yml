@@ -1,0 +1,50 @@
+name: CI – Test & Deploy Maze Generator
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ── 1. Run all pytest tests ──────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: RA/labyrinth_gen
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit & functional tests
+        run: python -m pytest tests/ -v --tb=short
+
+  # ── 2. Deploy to Render (only if tests pass) ────────────────────────────
+  deploy:
+    needs: test          # ← blocks deploy when tests fail
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "⚠ RENDER_DEPLOY_HOOK_URL secret is not set – skipping deploy."
+            exit 0
+          fi
+          echo "Triggering Render deployment..."
+          curl -s -o /dev/null -w "HTTP %{http_code}" "$RENDER_DEPLOY_HOOK_URL"
+          echo ""
+          echo "Deploy hook triggered successfully."
