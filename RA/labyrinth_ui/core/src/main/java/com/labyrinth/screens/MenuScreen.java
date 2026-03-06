@@ -60,7 +60,7 @@ public class MenuScreen implements Screen {
         // Algorithm
         Label algoLbl = new Label("Algorithm:", skin, "default");
         algoSelect = new SelectBox<>(skin);
-        algoSelect.setItems("DFS", "Kruskal", "Prim");
+        algoSelect.setItems("DFS", "Kruskal", "Prim", "Tetris");
         root.add(algoLbl).right().padRight(12);
         root.add(algoSelect).width(200).left().row();
 
@@ -105,7 +105,7 @@ public class MenuScreen implements Screen {
 
         // Server address
         Label serverLbl = new Label("Server:", skin, "default");
-        serverField = new TextField("localhost:5000", skin);
+        serverField = new TextField("https://kacemdfs.onrender.com", skin);
         root.add(serverLbl).right().padRight(12);
         root.add(serverField).width(250).left().padTop(8).row();
 
@@ -137,27 +137,23 @@ public class MenuScreen implements Screen {
         boolean animated = animatedCheck.isChecked();
         String server = serverField.getText().trim();
 
-        // Parse host:port
-        String host = "localhost";
-        int port = 5000;
-        if (server.contains(":")) {
-            String[] parts = server.split(":");
-            host = parts[0];
-            try {
-                port = Integer.parseInt(parts[1]);
-            } catch (NumberFormatException e) {
-                statusLabel.setText("Invalid port number");
-                statusLabel.setColor(NeonSkin.ERROR_RED);
-                return;
-            }
+        // Build base URL from the server field
+        String baseUrl;
+        if (server.startsWith("http://") || server.startsWith("https://")) {
+            // Full URL provided – use as-is (strip trailing slash)
+            baseUrl = server.endsWith("/") ? server.substring(0, server.length() - 1) : server;
+        } else if (server.contains(":")) {
+            // host:port format
+            baseUrl = "http://" + server;
         } else {
-            host = server;
+            // Plain hostname – assume http on port 5000
+            baseUrl = "http://" + server + ":5000";
         }
 
         statusLabel.setText("Generating...");
         statusLabel.setColor(NeonSkin.CYAN);
 
-        game.setScreen(new MazeScreen(game, algo, height, width, animated, host, port));
+        game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl));
     }
 
     @Override

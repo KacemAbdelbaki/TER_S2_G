@@ -16,12 +16,16 @@ public class ApiClient {
 
     private String baseUrl;
 
+    public ApiClient(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
     public ApiClient(String host, int port) {
-        this.baseUrl = "http://" + host + ":" + port;
+        this("http://" + host + ":" + port);
     }
 
     public ApiClient() {
-        this("localhost", 5000);
+        this("https://kacemdfs.onrender.com");
     }
 
     /**
@@ -132,6 +136,10 @@ public class ApiClient {
 
     public String getBaseUrl() {
         return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
     }
 
     public void setBaseUrl(String host, int port) {
