@@ -6,3 +6,9 @@ TER:
 ⦁ Tester algorithme Tetris pour la generation du maze
 ⦁ Benchmark tetris et DSF_updated (donner un score sur la joiabilité du maze)
 ⦁ Penser a des test pour la partie cloud/web service
+
+
+----
+* udate the add_cycles propability 
+* add a new api to use the tetris algorithm
+* make both apis in the webservice paramaterable
