@@ -50,7 +50,7 @@ jobs:
         with:
           context: ./RA/labyrinth_gen
           push: ${{ github.event_name == 'push' }}
-          tags: ${{ secrets.DOCKER_USERNAME }}/your-repo-name:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/dfs:latest
 
   # ── 3. Deploy to Render (only after build succeeds) ─────────────────────
   deploy:
