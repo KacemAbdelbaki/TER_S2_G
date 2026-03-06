@@ -19,6 +19,7 @@ from flask_cors import CORS
 from DFS import full_maze as dfs_full_maze
 from kruskal import full_maze as kruskal_full_maze
 from prim import full_maze as prim_full_maze
+from Tetris import full_maze as tetris_full_maze
 from common import maze_from_json, print_map
 
 app = Flask(__name__)
@@ -28,6 +29,7 @@ ALGORITHMS = {
     "dfs": dfs_full_maze,
     "kruskal": kruskal_full_maze,
     "prim": prim_full_maze,
+    "tetris": tetris_full_maze,
 }
 
 

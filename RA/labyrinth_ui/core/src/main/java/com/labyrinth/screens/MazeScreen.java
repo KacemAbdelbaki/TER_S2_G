@@ -32,8 +32,7 @@ public class MazeScreen implements Screen {
     private final String algorithm;
     private final int requestHeight, requestWidth;
     private final boolean animated;
-    private final String host;
-    private final int port;
+    private final String baseUrl;
 
     // Rendering
     private OrthographicCamera camera;
@@ -61,14 +60,13 @@ public class MazeScreen implements Screen {
     private boolean dragging = false;
 
     public MazeScreen(Main game, String algorithm, int height, int width,
-                      boolean animated, String host, int port) {
+                      boolean animated, String baseUrl) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
         this.requestWidth = width;
         this.animated = animated;
-        this.host = host;
-        this.port = port;
+        this.baseUrl = baseUrl;
     }
 
     @Override
@@ -118,7 +116,7 @@ public class MazeScreen implements Screen {
 
         // Fetch the maze
         hud.showLoading();
-        ApiClient client = new ApiClient(host, port);
+        ApiClient client = new ApiClient(baseUrl);
         client.fetchMaze(algorithm, requestHeight, requestWidth, animated, new ApiClient.MazeCallback() {
             @Override
             public void onSuccess(MazeData data) {
