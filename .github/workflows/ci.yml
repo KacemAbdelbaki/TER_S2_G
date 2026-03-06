@@ -48,7 +48,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./RA/labyrinth_gen
           push: ${{ github.event_name == 'push' }}
           tags: ${{ secrets.DOCKER_USERNAME }}/your-repo-name:latest
 
