@@ -37,6 +37,14 @@ public class ApiClient {
     }
 
     /**
+     * Called when a rating response is received.
+     */
+    public interface RatingCallback {
+        void onSuccess(float newRating, int totalVotes);
+        void onError(String message);
+    }
+
+    /**
      * Fetch a maze from the API asynchronously.
      *
      * @param algorithm "dfs", "kruskal", or "prim"
@@ -94,6 +102,23 @@ public class ApiClient {
         int width = root.getInt("width");
         MazeData maze = new MazeData(height, width);
 
+        // Parse maze ID (injected by backend from MongoDB)
+        String rawId = null;
+        JsonValue idVal = root.get("id");
+        if (idVal != null && !idVal.isNull()) {
+            try {
+                rawId = idVal.asString();
+            } catch (Exception e) {
+                rawId = null;
+            }
+        }
+        if (rawId != null && !rawId.isEmpty() && !"null".equals(rawId) && !"None".equals(rawId)) {
+            maze.id = rawId;
+        } else {
+            maze.id = null;
+        }
+        Gdx.app.log("ApiClient", "Parsed maze.id = " + maze.id);
+
         JsonValue rows = root.get("rows");
         int r = 0;
         for (JsonValue row = rows.child; row != null; row = row.next, r++) {
@@ -144,5 +169,53 @@ public class ApiClient {
 
     public void setBaseUrl(String host, int port) {
         this.baseUrl = "http://" + host + ":" + port;
+    }
+
+    /**
+     * Rate a maze by its ID (0-5 scale).
+     * Posts to /labyrinth/rate and returns the updated average via callback.
+     */
+    public void rateMaze(String mazeId, int rating, RatingCallback callback) {
+        String url = baseUrl + "/labyrinth/rate";
+        String body = "{\"maze_id\":\"" + mazeId + "\",\"rating\":" + rating + "}";
+
+        Net.HttpRequest request = new HttpRequestBuilder()
+                .newRequest()
+                .method(Net.HttpMethods.POST)
+                .url(url)
+                .timeout(10000)
+                .header("Content-Type", "application/json")
+                .content(body)
+                .build();
+
+        Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                String json = httpResponse.getResultAsString();
+                try {
+                    JsonReader reader = new JsonReader();
+                    JsonValue root = reader.parse(json);
+                    if (root.has("error")) {
+                        Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
+                    } else {
+                        float newRating = root.getFloat("new_rating");
+                        int totalVotes = root.getInt("total_votes");
+                        Gdx.app.postRunnable(() -> callback.onSuccess(newRating, totalVotes));
+                    }
+                } catch (Exception e) {
+                    Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                }
+            }
+
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.postRunnable(() -> callback.onError("Rating failed: " + t.getMessage()));
+            }
+
+            @Override
+            public void cancelled() {
+                Gdx.app.postRunnable(() -> callback.onError("Request cancelled"));
+            }
+        });
     }
 }

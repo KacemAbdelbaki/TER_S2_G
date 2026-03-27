@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.Gdx;
+import com.labyrinth.agents.Ghost;
 
 /**
  * Renders a Pac-Man style labyrinth with neon walls, dots, power pellets,
@@ -117,6 +118,36 @@ public class MazeRenderer {
         }
         sr.end();
 
+        // --- Fruits ---
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        for (int r = 0; r < maze.height; r++) {
+            for (int c = 0; c < maze.width; c++) {
+                MazeCell cell = maze.grid[r][c];
+                if (cell != null && cell.hasFruit) {
+                    float cx = originX + c * cellSize + cellSize / 2f;
+                    float cy = originY + (maze.height - 1 - r) * cellSize + cellSize / 2f;
+                    float fruitR = cellSize * 0.25f;
+                    // Cherry red by default; green for melon, orange for orange
+                    if ("orange".equals(cell.fruitType)) {
+                        sr.setColor(new Color(1f, 0.6f, 0f, 1f));
+                    } else if ("melon".equals(cell.fruitType)) {
+                        sr.setColor(new Color(0.2f, 0.9f, 0.3f, 1f));
+                    } else if ("strawberry".equals(cell.fruitType)) {
+                        sr.setColor(new Color(1f, 0.2f, 0.4f, 1f));
+                    } else if ("apple".equals(cell.fruitType)) {
+                        sr.setColor(new Color(0.8f, 0.1f, 0.1f, 1f));
+                    } else {
+                        sr.setColor(new Color(1f, 0f, 0.2f, 1f)); // cherry
+                    }
+                    sr.circle(cx, cy, fruitR, 14);
+                    // Small stem
+                    sr.setColor(new Color(0.4f, 0.25f, 0.1f, 1f));
+                    sr.rectLine(cx, cy + fruitR, cx + fruitR * 0.2f, cy + fruitR * 1.4f, 1.5f);
+                }
+            }
+        }
+        sr.end();
+
         // --- TP links ---
         sr.begin(ShapeRenderer.ShapeType.Line);
         sr.setColor(TP_LINK_COLOR);
@@ -136,8 +167,10 @@ public class MazeRenderer {
         }
         sr.end();
 
-        // --- Ghost shapes inside ghost room ---
-        renderGhosts(maze);
+        // --- Ghost shapes inside ghost room (only shown before player starts) ---
+        if (playerGridRow < 0) {
+            renderGhosts(maze);
+        }
 
         // --- Walls ---
         MazeCell[][] drawGrid;
@@ -321,6 +354,43 @@ public class MazeRenderer {
 
     public float gridToScreenX(int col) {
         return originX + col * cellSize;
+    }
+
+    /**
+     * Render the active ghost agents at their visual positions.
+     * Uses FRIGHTENED blue colour or EATEN eyes-only.
+     */
+    public void renderActiveGhosts(Ghost[] ghosts, OrthographicCamera camera) {
+        if (ghosts == null) return;
+        sr.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        float ghostSize = cellSize * 0.35f;
+
+        // Bodies
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < ghosts.length; i++) {
+            Ghost g = ghosts[i];
+            float gx = g.getVisualX();
+            float gy = g.getVisualY();
+
+            if (g.getMode() == Ghost.GhostMode.EATEN) {
+                continue; // eyes only, drawn below
+            } else if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                drawGhostShape(gx, gy, ghostSize, new Color(0.2f, 0.2f, 1.0f, 0.85f));
+            } else {
+                drawGhostShape(gx, gy, ghostSize, GHOST_COLORS[i % GHOST_COLORS.length]);
+            }
+        }
+        sr.end();
+
+        // Eyes
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        for (Ghost g : ghosts) {
+            drawGhostEyes(g.getVisualX(), g.getVisualY(), ghostSize);
+        }
+        sr.end();
     }
 
     public void dispose() {

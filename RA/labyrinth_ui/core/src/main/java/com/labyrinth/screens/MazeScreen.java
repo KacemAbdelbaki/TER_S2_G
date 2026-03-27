@@ -20,6 +20,12 @@ import com.labyrinth.maze.MazeRenderer;
 import com.labyrinth.net.ApiClient;
 import com.labyrinth.player.Player;
 import com.labyrinth.ui.MazeHud;
+import com.labyrinth.agents.Ghost;
+import com.labyrinth.agents.Blinky;
+import com.labyrinth.agents.Pinky;
+import com.labyrinth.agents.Inky;
+import com.labyrinth.agents.Clyde;
+import com.labyrinth.replay.GameRecorder;
 
 /**
  * Main Pac-Man game screen.
@@ -56,6 +62,31 @@ public class MazeScreen implements Screen {
     // HUD
     private MazeHud hud;
 
+    // API client (kept for rating calls)
+    private ApiClient apiClient;
+
+    // Ghosts
+    private Blinky blinky;
+    private Pinky pinky;
+    private Inky inky;
+    private Clyde clyde;
+    private Ghost[] ghosts;
+
+    // Ghost mode timer
+    private float modeTimer = 0f;
+    private int modePhase = 0;
+    // Classic Pac-Man scatter/chase durations (seconds)
+    private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
+    private boolean frightenedActive = false;
+    private float frightenedTimer = 0f;
+    private static final float FRIGHTENED_DURATION = 6f;
+
+    // Replay recorder
+    private GameRecorder recorder;
+
+    // Game over flag
+    private boolean gameOver = false;
+
     // Camera drag
     private boolean dragging = false;
 
@@ -82,6 +113,28 @@ public class MazeScreen implements Screen {
         player = new Player();
 
         hud = new MazeHud(game.skin, () -> game.setScreen(new MenuScreen(game)));
+
+        // Wire rating listener
+        hud.setRatingListener(rating -> {
+            Gdx.app.log("MazeScreen", "Rating clicked: " + rating
+                + ", maze.id=" + (maze != null ? maze.id : "null")
+                + ", apiClient=" + (apiClient != null)
+                + ", baseUrl=" + (apiClient != null ? apiClient.getBaseUrl() : "null"));
+            if (maze != null && maze.id != null && apiClient != null) {
+                apiClient.rateMaze(maze.id, rating, new ApiClient.RatingCallback() {
+                    @Override
+                    public void onSuccess(float newRating, int totalVotes) {
+                        hud.showRatingResult(newRating, totalVotes);
+                    }
+                    @Override
+                    public void onError(String message) {
+                        hud.showRatingError(message);
+                    }
+                });
+            } else {
+                hud.showRatingError("No maze ID — server may be offline or DB unavailable");
+            }
+        });
 
         // Wire animation controls
         hud.getPauseButton().addListener(new ChangeListener() {
@@ -116,8 +169,8 @@ public class MazeScreen implements Screen {
 
         // Fetch the maze
         hud.showLoading();
-        ApiClient client = new ApiClient(baseUrl);
-        client.fetchMaze(algorithm, requestHeight, requestWidth, animated, new ApiClient.MazeCallback() {
+        apiClient = new ApiClient(baseUrl);
+        apiClient.fetchMaze(algorithm, requestHeight, requestWidth, animated, new ApiClient.MazeCallback() {
             @Override
             public void onSuccess(MazeData data) {
                 maze = data;
@@ -191,6 +244,50 @@ public class MazeScreen implements Screen {
         float px = mazeRenderer.gridToScreenX(start[1]) + mazeRenderer.getCellSize() / 2f;
         float py = mazeRenderer.gridToScreenY(start[0], maze.height) + mazeRenderer.getCellSize() / 2f;
         player.setVisualPosition(px, py);
+
+        // Spawn ghosts inside the ghost room
+        spawnGhosts();
+
+        // Start recording
+        recorder = new GameRecorder(
+            maze.id, algorithm, maze.width, maze.height);
+    }
+
+    private void spawnGhosts() {
+        // Find ghost room center
+        int gMinR = maze.height, gMaxR = 0, gMinC = maze.width, gMaxC = 0;
+        boolean hasGhostRoom = false;
+        for (int r = 0; r < maze.height; r++) {
+            for (int c = 0; c < maze.width; c++) {
+                if (maze.grid[r][c] != null && maze.grid[r][c].isGhost) {
+                    hasGhostRoom = true;
+                    gMinR = Math.min(gMinR, r);
+                    gMaxR = Math.max(gMaxR, r);
+                    gMinC = Math.min(gMinC, c);
+                    gMaxC = Math.max(gMaxC, c);
+                }
+            }
+        }
+
+        int centerR = hasGhostRoom ? (gMinR + gMaxR) / 2 : maze.height / 2;
+        int centerC = hasGhostRoom ? (gMinC + gMaxC) / 2 : maze.width / 2;
+
+        blinky = new Blinky(maze, centerR, Math.min(centerC + 1, maze.width - 1));
+        pinky  = new Pinky(maze, centerR, Math.max(centerC - 1, 0));
+        inky   = new Inky(maze, centerR, Math.min(centerC + 2, maze.width - 1), blinky);
+        clyde  = new Clyde(maze, centerR, Math.max(centerC - 2, 0));
+        ghosts = new Ghost[]{blinky, pinky, inky, clyde};
+
+        float cs = mazeRenderer.getCellSize();
+        for (Ghost g : ghosts) {
+            float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
+            float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
+            g.setVisualPosition(gx, gy);
+        }
+
+        modeTimer = 0f;
+        modePhase = 0;
+        frightenedActive = false;
     }
 
     @Override
@@ -216,11 +313,43 @@ public class MazeScreen implements Screen {
         }
 
         // Update Pac-Man
-        if (playerActive) {
+        if (playerActive && !gameOver) {
             player.update(delta);
+
+            // Detect power pellet eat via flag set by Player
+            if (ghosts != null && player.powerPelletEaten) {
+                player.powerPelletEaten = false;
+                activateFrightened();
+            }
+
             float tx = mazeRenderer.gridToScreenX(player.gridCol) + mazeRenderer.getCellSize() / 2f;
             float ty = mazeRenderer.gridToScreenY(player.gridRow, maze.height) + mazeRenderer.getCellSize() / 2f;
             player.setTarget(tx, ty);
+
+            // Update ghosts
+            if (ghosts != null && !player.isWon() && !gameOver) {
+                updateGhosts(delta);
+            }
+
+            // Record frame
+            if (recorder != null && recorder.isRecording()) {
+                int[] gRows = new int[4], gCols = new int[4], gModes = new int[4];
+                if (ghosts != null) {
+                    for (int i = 0; i < ghosts.length; i++) {
+                        gRows[i] = ghosts[i].getGridRow();
+                        gCols[i] = ghosts[i].getGridCol();
+                        gModes[i] = ghosts[i].getMode().ordinal();
+                    }
+                }
+                recorder.recordFrame(player.getElapsedTime(),
+                    player.gridRow, player.gridCol, player.direction,
+                    player.visualX, player.visualY,
+                    player.score, player.dotsEaten, player.lives,
+                    player.isWon(), gRows, gCols, gModes);
+            }
+            if (player.isWon() && recorder != null && recorder.isRecording()) {
+                recorder.stop();
+            }
         }
 
         camera.update();
@@ -239,14 +368,123 @@ public class MazeScreen implements Screen {
             renderPacMan();
         }
 
+        // Render active ghosts (drawn over the maze, not the static ghost-room ghosts)
+        if (playerActive && ghosts != null) {
+            mazeRenderer.renderActiveGhosts(ghosts, camera);
+        }
+
         // HUD
         float elapsed = playerActive ? player.getElapsedTime() : 0f;
         int score = playerActive ? player.score : 0;
         int dotsLeft = playerActive ? player.getDotsRemaining() : 0;
-        hud.update(algorithm, maze.height, maze.width, elapsed, score, dotsLeft,
-                animationMode ? animator : null, playerActive, player.isWon());
+        int lives = playerActive ? player.lives : 3;
+        hud.update(algorithm, maze.height, maze.width, elapsed, score, dotsLeft, lives,
+                animationMode ? animator : null, playerActive, player.isWon(), gameOver);
         hud.getStage().act(delta);
         hud.getStage().draw();
+    }
+
+    /**
+     * Update ghost AI, mode switching, movement, and collision.
+     */
+    private void updateGhosts(float delta) {
+        float cs = mazeRenderer.getCellSize();
+
+        // Scatter / Chase mode switching
+        if (!frightenedActive) {
+            modeTimer += delta;
+            if (modePhase < MODE_DURATIONS.length && modeTimer >= MODE_DURATIONS[modePhase]) {
+                modeTimer = 0f;
+                modePhase++;
+            }
+            boolean scatter = (modePhase % 2 == 0);
+            for (Ghost g : ghosts) {
+                if (g.getMode() != Ghost.GhostMode.EATEN) {
+                    g.setMode(scatter ? Ghost.GhostMode.SCATTER : Ghost.GhostMode.CHASE);
+                }
+            }
+        } else {
+            frightenedTimer -= delta;
+            if (frightenedTimer <= 0) {
+                frightenedActive = false;
+                player.resetGhostCombo();
+            }
+        }
+
+        // Check if player just ate a power pellet (score jumped by 50)
+        // We detect it by checking if player is on a power pellet position
+        // Simpler: check frightenedActive transition from Player side
+        // Actually, let's detect power pellet via powerPellets grid change
+        // We track via a simple flag on the maze
+        // For now, trigger frightened when player eats a power pellet:
+        // The player already sets score += 50 for power pellets.
+        // We'll check if the player just landed on a power pellet cell.
+
+        // Move each ghost
+        for (Ghost g : ghosts) {
+            g.update(delta);
+            if (g.isReadyToMove()) {
+                if (g.isInGhostRoom()) {
+                    // Float upward out of ghost room (ignoring walls)
+                    g.exitGhostRoom();
+                } else {
+                    int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
+                    int dir = g.chooseDirection(target[0], target[1]);
+                    g.moveInDirection(dir);
+                }
+                g.resetMoveTimer();
+
+                float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
+                float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
+                g.setVisualTarget(gx, gy);
+            }
+        }
+
+        // Collision detection: ghost touches Pac-Man
+        for (Ghost g : ghosts) {
+            if (g.getGridRow() == player.gridRow && g.getGridCol() == player.gridCol) {
+                if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                    // Eat ghost
+                    player.eatGhost();
+                    g.setMode(Ghost.GhostMode.EATEN);
+                } else if (g.getMode() != Ghost.GhostMode.EATEN) {
+                    // Player dies
+                    if (player.loseLife()) {
+                        // Game over
+                        gameOver = true;
+                        player.gameOver = true;
+                        if (recorder != null && recorder.isRecording()) {
+                            recorder.stop();
+                        }
+                        return;
+                    } else {
+                        // Respawn player + ghosts
+                        int[] start = findPacManStart();
+                        player.gridRow = start[0];
+                        player.gridCol = start[1];
+                        float px = mazeRenderer.gridToScreenX(start[1]) + cs / 2f;
+                        float py = mazeRenderer.gridToScreenY(start[0], maze.height) + cs / 2f;
+                        player.setVisualPosition(px, py);
+                        spawnGhosts();
+                    }
+                    break; // only process one collision per frame
+                }
+            }
+        }
+    }
+
+    /**
+     * Called by Player when a power pellet is eaten. Activates FRIGHTENED mode.
+     */
+    public void activateFrightened() {
+        frightenedActive = true;
+        frightenedTimer = FRIGHTENED_DURATION;
+        player.resetGhostCombo();
+        for (Ghost g : ghosts) {
+            if (g.getMode() != Ghost.GhostMode.EATEN) {
+                g.setMode(Ghost.GhostMode.FRIGHTENED);
+            }
+        }
     }
 
     /**

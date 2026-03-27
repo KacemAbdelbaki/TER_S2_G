@@ -19,6 +19,7 @@ public class MazeHud {
     private Label sizeLabel;
     private Label timerLabel;
     private Label scoreLabel;
+    private Label livesLabel;
     private Label dotsLabel;
     private Label stepLabel;
     private Label helpLabel;
@@ -31,8 +32,18 @@ public class MazeHud {
     private Table animControls;
     private Table topBar;
     private Table bottomBar;
+    private Table ratingTable;
+    private Label ratingResultLabel;
+    private boolean ratingVisible = false;
+    private boolean ratingSubmitted = false;
 
     private Runnable onBack;
+    private RatingListener ratingListener;
+
+    /** Callback for when the user clicks a star rating. */
+    public interface RatingListener {
+        void onRate(int rating);
+    }
 
     public MazeHud(Skin skin, Runnable onBack) {
         this.skin = skin;
@@ -51,6 +62,7 @@ public class MazeHud {
         sizeLabel = new Label("", skin, "small");
         timerLabel = new Label("Time: 0.0s", skin, "default");
         scoreLabel = new Label("SCORE: 0", skin, "default");
+        livesLabel = new Label("LIVES: 3", skin, "default");
         dotsLabel = new Label("", skin, "small");
         statusLabel = new Label("", skin, "default");
 
@@ -67,6 +79,7 @@ public class MazeHud {
         topBar.add(sizeLabel).padRight(40);
         topBar.add(dotsLabel).padRight(20);
         topBar.add(scoreLabel).padRight(20);
+        topBar.add(livesLabel).padRight(20);
         topBar.add(timerLabel).expandX().right().padRight(12);
         stage.addActor(topBar);
 
@@ -106,18 +119,48 @@ public class MazeHud {
         helpLabel = new Label("WASD / Arrows to move  |  Scroll to zoom  |  ESC for menu", skin, "small");
         bottomBar.add(helpLabel);
         stage.addActor(bottomBar);
+
+        // Rating panel (hidden until win)
+        ratingTable = new Table();
+        ratingTable.setFillParent(true);
+        ratingTable.center().padTop(60);
+
+        ratingTable.add(new Label("Rate this maze:", skin, "default")).colspan(6).padBottom(10).row();
+
+        for (int star = 0; star <= 5; star++) {
+            final int rating = star;
+            String label = star == 0 ? "0" : "";
+            for (int s = 0; s < star; s++) label += "\u2605";
+            TextButton starBtn = new TextButton(label.isEmpty() ? "0" : label, skin, "default");
+            starBtn.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    if (!ratingSubmitted && ratingListener != null) {
+                        ratingListener.onRate(rating);
+                    }
+                }
+            });
+            ratingTable.add(starBtn).pad(4).minWidth(50);
+        }
+        ratingTable.row();
+        ratingResultLabel = new Label("", skin, "small");
+        ratingTable.add(ratingResultLabel).colspan(6).padTop(8);
+        ratingTable.setVisible(false);
+        stage.addActor(ratingTable);
     }
 
     /**
      * Update HUD info each frame.
      */
     public void update(String algorithm, int mazeH, int mazeW, float elapsed,
-                       int score, int dotsRemaining,
-                       GenerationAnimator animator, boolean playerActive, boolean won) {
+                       int score, int dotsRemaining, int lives,
+                       GenerationAnimator animator, boolean playerActive, boolean won,
+                       boolean gameOver) {
         algoLabel.setText(algorithm.toUpperCase());
         sizeLabel.setText(mazeH + " x " + mazeW);
         timerLabel.setText(String.format("Time: %.1fs", elapsed));
         scoreLabel.setText("SCORE: " + score);
+        livesLabel.setText("LIVES: " + lives);
 
         if (playerActive) {
             dotsLabel.setText("Dots: " + dotsRemaining);
@@ -126,8 +169,19 @@ public class MazeHud {
         }
 
         if (won) {
-            statusLabel.setText("YOU WIN! Press ESC or click Menu.");
+            statusLabel.setText("YOU WIN! Rate the maze below, then ESC or click Menu.");
             statusLabel.setColor(NeonSkin.ACCENT);
+            if (!ratingVisible) {
+                ratingTable.setVisible(true);
+                ratingVisible = true;
+            }
+        } else if (gameOver) {
+            statusLabel.setText("GAME OVER! Score: " + score + "  |  Rate the maze below, then ESC or Menu.");
+            statusLabel.setColor(NeonSkin.ERROR_RED);
+            if (!ratingVisible) {
+                ratingTable.setVisible(true);
+                ratingVisible = true;
+            }
         } else {
             statusLabel.setText("");
         }
@@ -140,7 +194,7 @@ public class MazeHud {
             pauseButton.setText(animator.isPlaying() ? "Pause" : "Play");
         }
 
-        if (playerActive && !won) {
+        if (playerActive && !won && !gameOver) {
             helpLabel.setText("WASD / Arrows to move  |  Eat all dots to win!  |  ESC for menu");
         } else if (!playerActive && animActive) {
             helpLabel.setText("Watching generation animation...");
@@ -162,6 +216,21 @@ public class MazeHud {
     public TextButton getRestartButton() { return restartButton; }
     public TextButton getSkipButton() { return skipButton; }
     public Slider getSpeedSlider() { return speedSlider; }
+
+    public void setRatingListener(RatingListener listener) { this.ratingListener = listener; }
+
+    /** Show a result message after rating is submitted. */
+    public void showRatingResult(float avg, int votes) {
+        ratingSubmitted = true;
+        ratingResultLabel.setText(String.format("Rating: %.2f  (%d votes)", avg, votes));
+        ratingResultLabel.setColor(NeonSkin.ACCENT);
+    }
+
+    /** Show a rating error message. */
+    public void showRatingError(String msg) {
+        ratingResultLabel.setText("Rating error: " + msg);
+        ratingResultLabel.setColor(NeonSkin.ERROR_RED);
+    }
 
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);

@@ -7,6 +7,7 @@ import java.util.List;
  * Complete labyrinth data model parsed from the API JSON response.
  */
 public class MazeData {
+    public String id;        // MongoDB ID from the API (null if DB unavailable)
     public int height;
     public int width;
     public MazeCell[][] grid;

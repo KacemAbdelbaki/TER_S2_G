@@ -48,12 +48,29 @@ public class Player {
     public int totalDots = 0;
     public int score = 0;
 
+    // Lives & ghost combo
+    public int lives = 3;
+    private boolean extraLifeAwarded = false;
+    private static final int EXTRA_LIFE_THRESHOLD = 10000;
+    public int ghostCombo = 0;  // resets each power pellet
+    private static final int[] GHOST_KILL_POINTS = {200, 400, 800, 1600};
+
+    // Fruit values by type
+    private static final String[] FRUIT_TYPES = {"cherry", "strawberry", "orange", "apple", "melon"};
+    private static final int[] FRUIT_VALUES = {100, 300, 500, 700, 1000};
+
     // Maze reference
     private MazeData maze;
 
     // Timer
     private float elapsedTime;
     private boolean won;
+
+    // Power pellet flag — set to true when a power pellet is eaten, reset by game loop
+    public boolean powerPelletEaten = false;
+
+    // Game over flag
+    public boolean gameOver = false;
 
     // Cooldown
     private float moveCooldown = 0f;
@@ -123,7 +140,7 @@ public class Player {
     }
 
     public void update(float delta) {
-        if (won) return;
+        if (won || gameOver) return;
 
         elapsedTime += delta;
 
@@ -197,9 +214,21 @@ public class Player {
             if (powerPellets[gridRow][gridCol]) {
                 powerPellets[gridRow][gridCol] = false;
                 score += 50;  // power pellet bonus
+                ghostCombo = 0; // reset combo on new power pellet
+                powerPelletEaten = true; // signal for MazeScreen to activate frightened
             } else {
                 score += 10;
             }
+            checkExtraLife();
+            checkFruitSpawn();
+        }
+
+        // Eat fruit if present
+        MazeCell landed = maze.getCell(gridRow, gridCol);
+        if (landed != null && landed.hasFruit) {
+            eatFruit(landed.fruitType);
+            landed.hasFruit = false;
+            landed.fruitType = null;
         }
 
         // Teleport
@@ -233,4 +262,82 @@ public class Player {
     public boolean isMoving() { return moving; }
     public float getElapsedTime() { return elapsedTime; }
     public int getDotsRemaining() { return totalDots - dotsEaten; }
+
+    /** Called when Pac-Man eats a ghost during FRIGHTENED mode. */
+    public int eatGhost() {
+        int points = GHOST_KILL_POINTS[Math.min(ghostCombo, GHOST_KILL_POINTS.length - 1)];
+        ghostCombo++;
+        score += points;
+        checkExtraLife();
+        return points;
+    }
+
+    /** Reset ghost combo counter (call when power pellet effect ends). */
+    public void resetGhostCombo() {
+        ghostCombo = 0;
+    }
+
+    /** Called when Pac-Man picks up a fruit. */
+    public int eatFruit(String fruitType) {
+        int points = 100; // default
+        for (int i = 0; i < FRUIT_TYPES.length; i++) {
+            if (FRUIT_TYPES[i].equals(fruitType)) {
+                points = FRUIT_VALUES[i];
+                break;
+            }
+        }
+        score += points;
+        checkExtraLife();
+        return points;
+    }
+
+    /** Spawn a fruit at the center of the maze if conditions are met. */
+    public void checkFruitSpawn() {
+        if (maze == null || totalDots <= 0) return;
+        // Spawn fruit at ~30% and ~60% of total dots eaten
+        int firstThreshold = Math.max(5, totalDots / 3);
+        int secondThreshold = Math.max(10, (totalDots * 2) / 3);
+        if (dotsEaten == firstThreshold || dotsEaten == secondThreshold) {
+            // Try center, then search outward for a non-ghost walkable cell
+            int cr = maze.height / 2;
+            int cc = maze.width / 2;
+            MazeCell cell = findFruitCell(cr, cc);
+            if (cell != null && !cell.hasFruit) {
+                cell.hasFruit = true;
+                int idx = (dotsEaten == firstThreshold) ? 0
+                    : Math.min(dotsEaten / (totalDots / 5 + 1), FRUIT_TYPES.length - 1);
+                cell.fruitType = FRUIT_TYPES[idx];
+            }
+        }
+    }
+
+    private MazeCell findFruitCell(int startR, int startC) {
+        // Search expanding rings from the center for a valid non-ghost cell
+        for (int dist = 0; dist < Math.max(maze.height, maze.width); dist++) {
+            for (int dr = -dist; dr <= dist; dr++) {
+                for (int dc = -dist; dc <= dist; dc++) {
+                    if (Math.abs(dr) != dist && Math.abs(dc) != dist) continue;
+                    int r = startR + dr, c = startC + dc;
+                    MazeCell cell = maze.getCell(r, c);
+                    if (cell != null && !cell.isGhost && !cell.hasFruit) {
+                        return cell;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private void checkExtraLife() {
+        if (!extraLifeAwarded && score >= EXTRA_LIFE_THRESHOLD) {
+            lives++;
+            extraLifeAwarded = true;
+        }
+    }
+
+    /** Lose a life. Returns true if game over (no lives left). */
+    public boolean loseLife() {
+        lives--;
+        return lives <= 0;
+    }
 }

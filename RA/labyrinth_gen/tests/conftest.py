@@ -58,8 +58,10 @@ def maze_grid(maze_json):
 
 @pytest.fixture
 def flask_client():
-    """Provide a Flask test client for API tests."""
+    """Provide a Flask test client for API tests (MongoDB mocked)."""
+    from unittest.mock import patch
     from labyrinthWebService import app
     app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client
+    with patch("labyrinthWebService.save_maze", return_value="fake_id_123"):
+        with app.test_client() as client:
+            yield client

@@ -20,6 +20,11 @@ public class MazeCell {
     /** Teleport target column (-1 if none). */
     public int tpY = -1;
 
+    /** Whether this cell currently holds a fruit bonus. */
+    public boolean hasFruit = false;
+    /** Fruit type identifier (e.g. "cherry", "strawberry", "orange", "apple", "melon"). */
+    public String fruitType = null;
+
     public MazeCell(int x, int y) {
         this.x = x;
         this.y = y;

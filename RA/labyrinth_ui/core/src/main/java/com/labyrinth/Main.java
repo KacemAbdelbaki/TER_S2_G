@@ -62,9 +62,8 @@ public class Main extends Game {
     @Override
     public void dispose() {
         batch.dispose();
-        titleFont.dispose();
-        bodyFont.dispose();
-        smallFont.dispose();
+        // Fonts are owned by the Skin — disposing them here would cause
+        // a "Pixmap already disposed" crash when Skin.dispose() runs.
         skin.dispose();
     }
 }
