@@ -140,7 +140,7 @@ public class MenuScreen implements Screen {
 
         // Server address
         Label serverLbl = new Label("Server:", skin, "default");
-        serverField = new TextField("http://localhost:5000", skin);
+        serverField = new TextField("https://pacman-s2-g.onrender.com", skin);
         root.add(serverLbl).right().padRight(12);
         root.add(serverField).width(250).left().padTop(8).row();
 

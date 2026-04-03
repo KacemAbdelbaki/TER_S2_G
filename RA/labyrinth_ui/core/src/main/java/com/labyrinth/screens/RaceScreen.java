@@ -521,28 +521,34 @@ public class RaceScreen implements Screen {
 
     private void renderSplitScreen(int screenW, int screenH) {
         int halfW = screenW / 2;
+        float worldW = vpLeft.getWorldWidth();
+        float worldH = vpLeft.getWorldHeight();
 
-        // Left half — human
+        // ---- Left half — human ----
         Gdx.gl.glViewport(0, 0, halfW, screenH);
-        vpLeft.update(halfW, screenH, true);
+        cameraLeft.viewportWidth = worldW;
+        cameraLeft.viewportHeight = worldH;
+        cameraLeft.position.set(worldW / 2f, worldH / 2f, 0);
         cameraLeft.update();
 
         rendererLeft.render(maze, cameraLeft, -1,
             humanPlayer.gridRow, humanPlayer.gridCol,
             humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
-        renderPacMan(cameraLeft, humanPlayer, Color.YELLOW, rendererLeft);
         rendererLeft.renderActiveGhosts(humanGhosts, cameraLeft);
+        renderPacMan(cameraLeft, humanPlayer, Color.YELLOW, rendererLeft);
 
-        // Right half — bot
+        // ---- Right half — bot ----
         Gdx.gl.glViewport(halfW, 0, screenW - halfW, screenH);
-        vpRight.update(screenW - halfW, screenH, true);
+        cameraRight.viewportWidth = worldW;
+        cameraRight.viewportHeight = worldH;
+        cameraRight.position.set(worldW / 2f, worldH / 2f, 0);
         cameraRight.update();
 
         rendererRight.render(maze, cameraRight, -1,
             botPlayer.gridRow, botPlayer.gridCol,
             botPlayer.visitedCells, botPlayer.dots, botPlayer.powerPellets);
-        renderPacMan(cameraRight, botPlayer, NeonSkin.CYAN, rendererRight);
         rendererRight.renderActiveGhosts(botGhosts, cameraRight);
+        renderPacMan(cameraRight, botPlayer, NeonSkin.CYAN, rendererRight);
 
         // Restore full viewport for HUD
         Gdx.gl.glViewport(0, 0, screenW, screenH);
@@ -562,12 +568,15 @@ public class RaceScreen implements Screen {
             humanPlayer.gridRow, humanPlayer.gridCol,
             humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
 
-        // Render both Pac-Men
-        renderPacManOverlay(cameraFull, humanPlayer, Color.YELLOW, rendererFull);
-        renderPacManOverlay(cameraFull, botPlayer, NeonSkin.CYAN, rendererFull);
+        // Ghosts — rendered at grid positions via the full renderer so coords match the camera
+        rendererFull.renderActiveGhostsAtGrid(humanGhosts, cameraFull, maze.height);
 
-        // Ghosts (only render human's ghosts for clarity)
-        rendererFull.renderActiveGhosts(humanGhosts, cameraFull);
+        // Bot pac-man first (semi-transparent so human is always visible)
+        renderPacManOverlay(cameraFull, botPlayer,
+            new Color(NeonSkin.CYAN.r, NeonSkin.CYAN.g, NeonSkin.CYAN.b, 0.55f),
+            rendererRight);
+        // Human pac-man last (on top, full opacity, always visible)
+        renderPacManOverlay(cameraFull, humanPlayer, Color.YELLOW, rendererLeft);
     }
 
     /**
@@ -579,16 +588,32 @@ public class RaceScreen implements Screen {
     }
 
     /**
-     * Render Pac-Man for overlay mode (uses the full-screen renderer coordinates).
-     * Recalculates visual position to match the full renderer layout.
+     * Render Pac-Man for overlay mode. Remaps the player's smooth visual
+     * position from the lane renderer's coordinate space into the full
+     * renderer's coordinate space so movement is smooth, not grid-snapped.
      */
-    private void renderPacManOverlay(OrthographicCamera cam, Player p, Color color, MazeRenderer renderer) {
-        float size = renderer.getCellSize() * 0.38f; // slightly smaller in overlay
-        float cs = renderer.getCellSize();
-        // Use grid position for overlay to avoid coordinate mismatch
-        float cx = renderer.gridToScreenX(p.gridCol) + cs / 2f;
-        float cy = renderer.gridToScreenY(p.gridRow, maze.height) + cs / 2f;
+    private void renderPacManOverlay(OrthographicCamera cam, Player p, Color color,
+                                      MazeRenderer laneRenderer) {
+        float size = rendererFull.getCellSize() * 0.42f;
+        float cx = remapX(p.visualX, laneRenderer, rendererFull);
+        float cy = remapY(p.visualY, laneRenderer, rendererFull);
         drawPacManShapeAt(cam, cx, cy, p.direction, p.mouthAngle, color, size);
+    }
+
+    /** Remap an X coordinate from one renderer's space to another's. */
+    private float remapX(float x, MazeRenderer from, MazeRenderer to) {
+        float span = from.getCellSize() * maze.width;
+        if (span < 0.001f) return x;
+        float fraction = (x - from.getOriginX()) / span;
+        return to.getOriginX() + fraction * to.getCellSize() * maze.width;
+    }
+
+    /** Remap a Y coordinate from one renderer's space to another's. */
+    private float remapY(float y, MazeRenderer from, MazeRenderer to) {
+        float span = from.getCellSize() * maze.height;
+        if (span < 0.001f) return y;
+        float fraction = (y - from.getOriginY()) / span;
+        return to.getOriginY() + fraction * to.getCellSize() * maze.height;
     }
 
     private void drawPacManShape(OrthographicCamera cam, Player p, Color color, float size) {

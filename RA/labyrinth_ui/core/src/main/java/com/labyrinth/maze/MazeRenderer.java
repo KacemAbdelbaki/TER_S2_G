@@ -394,6 +394,44 @@ public class MazeRenderer {
     }
 
     /**
+     * Render ghosts at their grid positions (not visual positions).
+     * Useful when the ghost visual positions are in a different coordinate space
+     * (e.g. half-width renderer) than the camera being drawn with.
+     */
+    public void renderActiveGhostsAtGrid(Ghost[] ghosts, OrthographicCamera camera, int mazeHeight) {
+        if (ghosts == null) return;
+        sr.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        float ghostSize = cellSize * 0.35f;
+
+        // Bodies
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < ghosts.length; i++) {
+            Ghost g = ghosts[i];
+            if (g.getMode() == Ghost.GhostMode.EATEN) continue;
+            float gx = gridToScreenX(g.getGridCol()) + cellSize / 2f;
+            float gy = gridToScreenY(g.getGridRow(), mazeHeight) + cellSize / 2f;
+            if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                drawGhostShape(gx, gy, ghostSize, new Color(0.2f, 0.2f, 1.0f, 0.85f));
+            } else {
+                drawGhostShape(gx, gy, ghostSize, GHOST_COLORS[i % GHOST_COLORS.length]);
+            }
+        }
+        sr.end();
+
+        // Eyes
+        sr.begin(ShapeRenderer.ShapeType.Filled);
+        for (Ghost g : ghosts) {
+            float gx = gridToScreenX(g.getGridCol()) + cellSize / 2f;
+            float gy = gridToScreenY(g.getGridRow(), mazeHeight) + cellSize / 2f;
+            drawGhostEyes(gx, gy, ghostSize);
+        }
+        sr.end();
+    }
+
+    /**
      * Renders a predicted path showing the exact tiles each ghost is planning to move to next.
      * This uses the same greedy pathfinding logic that ghosts use to decide their movements.
      */
