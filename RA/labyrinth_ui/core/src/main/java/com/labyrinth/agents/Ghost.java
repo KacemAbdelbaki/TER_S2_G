@@ -132,7 +132,7 @@ public abstract class Ghost implements Agent {
             }
         }
 
-        long startNs = System.nanoTime();
+        //long startNs = System.nanoTime();
         int nodes = 0;
         while (!open.isEmpty()) {
             Node current = open.poll();

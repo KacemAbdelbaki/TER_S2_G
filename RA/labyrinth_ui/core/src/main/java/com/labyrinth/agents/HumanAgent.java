@@ -2,7 +2,7 @@ package com.labyrinth.agents;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.labyrinth.maze.MazeData;
+//import com.labyrinth.maze.MazeData;
 
 /**
  * Human-controlled agent that reads keyboard input (WASD / Arrows).
@@ -35,13 +35,16 @@ public class HumanAgent implements Agent {
     }
 
     /** Whether the human pressed a movement key this frame. */
-    public boolean hasPendingMove() { return hasPendingMove; }
+    @Override public boolean hasPendingMove() { return hasPendingMove; }
 
     /** Requested row delta (-1=up, 1=down, 0=none). */
-    public int getPendingDR() { return pendingDR; }
+    @Override public int getPendingDR() { return pendingDR; }
 
     /** Requested column delta (-1=left, 1=right, 0=none). */
-    public int getPendingDC() { return pendingDC; }
+    @Override public int getPendingDC() { return pendingDC; }
+
+    @Override
+    public void consumeMove() { hasPendingMove = false; }
 
     public void setPosition(int row, int col) { this.gridRow = row; this.gridCol = col; }
     public void setVisualPosition(float x, float y) { this.visualX = x; this.visualY = y; }

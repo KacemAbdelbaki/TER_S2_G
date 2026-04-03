@@ -1,6 +1,6 @@
 package com.labyrinth.ui;
 
-import com.badlogic.gdx.Gdx;
+//import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
@@ -62,7 +62,7 @@ public class NeonSkin {
         Drawable accentDim  = solidDrawable(ACCENT_DIM);
         Drawable cyanDraw   = solidDrawable(CYAN);
         Drawable whiteDraw  = solidDrawable(TEXT_WHITE);
-        Drawable transparent = solidDrawable(new Color(0, 0, 0, 0));
+        //Drawable transparent = solidDrawable(new Color(0, 0, 0, 0));
 
         // ----- Label -----
         Label.LabelStyle labelStyle = new Label.LabelStyle();

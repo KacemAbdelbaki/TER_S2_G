@@ -25,6 +25,7 @@ import com.labyrinth.agents.Blinky;
 import com.labyrinth.agents.Pinky;
 import com.labyrinth.agents.Inky;
 import com.labyrinth.agents.Clyde;
+import com.labyrinth.agents.HumanAgent;
 import com.labyrinth.replay.GameRecorder;
 
 /**
@@ -87,6 +88,9 @@ public class MazeScreen implements Screen {
 
     // Game over flag
     private boolean gameOver = false;
+
+    // Replay save guard
+    private boolean replaySaved = false;
 
     // Camera drag
     private boolean dragging = false;
@@ -251,12 +255,16 @@ public class MazeScreen implements Screen {
         prevGridRow = start[0];
         prevGridCol = start[1];
 
+        // Wire human input agent
+        player.setInputAgent(new HumanAgent());
+
         // Spawn ghosts inside the ghost room
         spawnGhosts();
 
         // Start recording
         recorder = new GameRecorder(
             maze.id, algorithm, maze.width, maze.height);
+        player.setRecorder(recorder);
     }
 
     private void spawnGhosts() {
@@ -377,6 +385,7 @@ public class MazeScreen implements Screen {
             }
             if (player.isWon() && recorder != null && recorder.isRecording()) {
                 recorder.stop();
+                saveReplayToCloud();
             }
         }
 
@@ -500,6 +509,7 @@ public class MazeScreen implements Screen {
                         player.gameOver = true;
                         if (recorder != null && recorder.isRecording()) {
                             recorder.stop();
+                            saveReplayToCloud();
                         }
                         return;
                     } else {
@@ -516,6 +526,54 @@ public class MazeScreen implements Screen {
                 }
             }
         }
+    }
+
+    /** Upload finished replay to the cloud (fire-and-forget). */
+    private void saveReplayToCloud() {
+        if (replaySaved || recorder == null || apiClient == null) return;
+        replaySaved = true;
+
+        // Build the JSON body expected by POST /replay
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"maze_id\":\"").append(maze.id != null ? maze.id : "").append("\",");
+        sb.append("\"algorithm\":\"").append(algorithm).append("\",");
+        sb.append("\"maze_width\":").append(maze.width).append(",");
+        sb.append("\"maze_height\":").append(maze.height).append(",");
+        sb.append("\"player_type\":\"human\",");
+        sb.append("\"final_score\":").append(player.score).append(",");
+        sb.append("\"final_dots_eaten\":").append(player.dotsEaten).append(",");
+        sb.append("\"won\":").append(player.isWon()).append(",");
+        sb.append("\"duration_seconds\":").append(player.getElapsedTime()).append(",");
+        sb.append("\"frame_count\":").append(recorder.getFrameCount()).append(",");
+        // Include inputs from recorder
+        sb.append("\"inputs\":[");
+        for (int i = 0; i < recorder.getInputs().size; i++) {
+            GameRecorder.InputRecord ir = recorder.getInputs().get(i);
+            if (i > 0) sb.append(",");
+            sb.append("{\"timestamp\":").append(ir.timestamp)
+              .append(",\"dr\":").append(ir.dr)
+              .append(",\"dc\":").append(ir.dc).append("}");
+        }
+        sb.append("],");
+        // Include frames
+        sb.append("\"frames\":");
+        sb.append(new com.badlogic.gdx.utils.Json().toJson(
+            recorder.getFrames(),
+            com.badlogic.gdx.utils.Array.class,
+            GameRecorder.FrameRecord.class));
+        sb.append("}");
+
+        apiClient.saveReplay(sb.toString(), new ApiClient.ReplaySaveCallback() {
+            @Override
+            public void onSuccess(String replayId) {
+                Gdx.app.log("MazeScreen", "Replay saved: " + replayId);
+            }
+            @Override
+            public void onError(String message) {
+                Gdx.app.log("MazeScreen", "Replay save failed: " + message);
+            }
+        });
     }
 
     /**

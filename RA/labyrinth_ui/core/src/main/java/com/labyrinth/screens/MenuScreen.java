@@ -9,7 +9,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.labyrinth.Main;
+import com.labyrinth.agents.BotAgent;
 import com.labyrinth.maze.MazeRenderer;
+import com.labyrinth.net.ApiClient;
+import com.labyrinth.ui.NeonSkin;
 import com.labyrinth.ui.NeonSkin;
 
 
@@ -34,6 +37,8 @@ public class MenuScreen implements Screen {
     private TextField serverField;
     private TextButton generateBtn;
     private Label statusLabel;
+    private CheckBox raceCheck;
+    private SelectBox<String> botStrategySelect;
 
     public MenuScreen(Main game) {
         this.game = game;
@@ -111,6 +116,28 @@ public class MenuScreen implements Screen {
         animatedCheck.setChecked(true);
         root.add(animatedCheck).colspan(2).padTop(8).row();
 
+        // Race mode
+        raceCheck = new CheckBox("  Race vs Bot", skin);
+        root.add(raceCheck).colspan(2).padTop(4).row();
+
+        Label botLbl = new Label("Bot Strategy:", skin, "default");
+        botStrategySelect = new SelectBox<>(skin);
+        botStrategySelect.setItems("GREEDY", "GHOST_AVOIDANCE");
+        botStrategySelect.setVisible(false);
+        botLbl.setVisible(false);
+        root.add(botLbl).right().padRight(12);
+        root.add(botStrategySelect).width(200).left().row();
+
+        raceCheck.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                boolean on = raceCheck.isChecked();
+                botStrategySelect.setVisible(on);
+                // find bot label sibling (previous row)
+                botLbl.setVisible(on);
+            }
+        });
+
         // Server address
         Label serverLbl = new Label("Server:", skin, "default");
         serverField = new TextField("http://localhost:5000", skin);
@@ -126,6 +153,16 @@ public class MenuScreen implements Screen {
             }
         });
         root.add(generateBtn).colspan(2).width(280).height(55).padTop(24).row();
+
+        // Watch Replay button
+        TextButton replayBtn = new TextButton("WATCH LAST REPLAY", skin, "default");
+        replayBtn.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                onWatchReplay();
+            }
+        });
+        root.add(replayBtn).colspan(2).width(280).height(45).padTop(10).row();
 
         // Status label
         statusLabel = new Label("", skin, "small");
@@ -162,7 +199,66 @@ public class MenuScreen implements Screen {
         statusLabel.setColor(NeonSkin.CYAN);
 
         String diff = diffSelect.getSelected();
-        game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff));
+
+        if (raceCheck.isChecked()) {
+            BotAgent.BotStrategy strategy =
+                BotAgent.BotStrategy.valueOf(botStrategySelect.getSelected());
+            game.setScreen(new RaceScreen(game, algo, height, width, baseUrl, diff, strategy));
+        } else {
+            game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff));
+        }
+    }
+
+    private void onWatchReplay() {
+        String server = serverField.getText().trim();
+        String baseUrl;
+        if (server.startsWith("http://") || server.startsWith("https://")) {
+            baseUrl = server.endsWith("/") ? server.substring(0, server.length() - 1) : server;
+        } else if (server.contains(":")) {
+            baseUrl = "http://" + server;
+        } else {
+            baseUrl = "http://" + server + ":5000";
+        }
+
+        statusLabel.setText("Fetching latest replay...");
+        statusLabel.setColor(NeonSkin.CYAN);
+
+        // Fetch replay list, pick first, then load full replay
+        ApiClient api = new ApiClient(baseUrl);
+        api.listReplays(null, 1, new ApiClient.ReplayListCallback() {
+            @Override
+            public void onSuccess(String listJson) {
+                try {
+                    com.badlogic.gdx.utils.JsonValue arr = new com.badlogic.gdx.utils.JsonReader().parse(listJson);
+                    if (arr == null || arr.size == 0) {
+                        statusLabel.setText("No replays found");
+                        statusLabel.setColor(NeonSkin.ERROR_RED);
+                        return;
+                    }
+                    String replayId = arr.get(0).getString("_id");
+                    // Load full replay
+                    api.loadReplay(replayId, new ApiClient.ReplayLoadCallback() {
+                        @Override
+                        public void onSuccess(String replayJson) {
+                            game.setScreen(new ReplayScreen(game, replayJson, baseUrl));
+                        }
+                        @Override
+                        public void onError(String msg) {
+                            statusLabel.setText("Load error: " + msg);
+                            statusLabel.setColor(NeonSkin.ERROR_RED);
+                        }
+                    });
+                } catch (Exception e) {
+                    statusLabel.setText("Parse error: " + e.getMessage());
+                    statusLabel.setColor(NeonSkin.ERROR_RED);
+                }
+            }
+            @Override
+            public void onError(String msg) {
+                statusLabel.setText("Replay list error: " + msg);
+                statusLabel.setColor(NeonSkin.ERROR_RED);
+            }
+        });
     }
 
     @Override

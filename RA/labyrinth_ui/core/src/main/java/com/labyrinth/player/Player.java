@@ -1,10 +1,10 @@
 package com.labyrinth.player;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.math.MathUtils;
+import com.labyrinth.agents.Agent;
 import com.labyrinth.maze.MazeCell;
 import com.labyrinth.maze.MazeData;
+import com.labyrinth.replay.GameRecorder;
 
 /**
  * Pac-Man player entity.
@@ -62,6 +62,12 @@ public class Player {
     // Maze reference
     private MazeData maze;
 
+    // Input agent (human keyboard or AI bot)
+    private Agent inputAgent;
+
+    // Replay recorder (for input-based recording)
+    private GameRecorder recorder;
+
     // Timer
     private float elapsedTime;
     private boolean won;
@@ -79,6 +85,12 @@ public class Player {
     public Player() {
         this.won = false;
     }
+
+    /** Set the agent that provides movement input (human or bot). */
+    public void setInputAgent(Agent agent) { this.inputAgent = agent; }
+
+    /** Set the recorder for input-level replay recording. */
+    public void setRecorder(GameRecorder recorder) { this.recorder = recorder; }
 
     /**
      * Initialize Pac-Man for a new maze.
@@ -171,15 +183,11 @@ public class Player {
         boolean visuallyArrived = Math.abs(visualX - targetX) < 0.5f
                                && Math.abs(visualY - targetY) < 0.5f;
 
-        if (visuallyArrived && moveCooldown <= 0) {
-            if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) {
-                tryMove(-1, 0);
-            } else if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
-                tryMove(1, 0);
-            } else if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-                tryMove(0, -1);
-            } else if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-                tryMove(0, 1);
+        if (visuallyArrived && moveCooldown <= 0 && inputAgent != null) {
+            inputAgent.update(delta);
+            if (inputAgent.hasPendingMove()) {
+                tryMove(inputAgent.getPendingDR(), inputAgent.getPendingDC());
+                inputAgent.consumeMove();
             }
         }
     }
@@ -201,6 +209,11 @@ public class Player {
         int newCol = gridCol + dc;
         MazeCell target = maze.getCell(newRow, newCol);
         if (target == null) return;
+
+        // Record successful input for deterministic replay
+        if (recorder != null && recorder.isRecording()) {
+            recorder.recordInput(elapsedTime, dr, dc);
+        }
 
         // Update direction
         if (dc == 1) direction = DIR_RIGHT;

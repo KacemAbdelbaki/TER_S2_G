@@ -21,6 +21,7 @@ from prim import full_maze as prim_full_maze
 from Tetris import full_maze as tetris_full_maze
 from common import maze_from_json, print_map
 from db import save_maze, rate_maze, get_maze_by_id, list_mazes
+from db import save_replay, get_replay_by_id, list_replays
 
 app = Flask(__name__)
 CORS(app)
@@ -130,6 +131,86 @@ def get_all_mazes():
             "width": doc.get("width"),
             "rating": doc.get("rating"),
             "rating_count": doc.get("rating_count", 0),
+            "created_at": str(doc.get("created_at", "")),
+        })
+    return jsonify(results)
+
+
+# ---------------------------------------------------------------------------
+# Replay endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/replay", methods=["POST"])
+def save_game_replay():
+    """Save a game replay.  Expects a JSON body with replay data."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    maze_id = data.get("mazeId") or data.get("maze_id")
+    if not maze_id:
+        return jsonify({"error": "mazeId is required"}), 400
+
+    # Validate maze exists
+    maze_doc = get_maze_by_id(maze_id)
+    if maze_doc is None:
+        return jsonify({"error": f"Maze '{maze_id}' not found"}), 404
+
+    # Build replay document
+    replay_doc = {
+        "maze_id": maze_id,
+        "algorithm": data.get("algorithm", ""),
+        "maze_width": data.get("mazeWidth", 0),
+        "maze_height": data.get("mazeHeight", 0),
+        "player_type": data.get("playerType", "human"),
+        "bot_strategy": data.get("botStrategy"),
+        "final_score": data.get("finalScore", 0),
+        "final_dots_eaten": data.get("finalDotsEaten", 0),
+        "won": data.get("won", False),
+        "duration_seconds": data.get("durationSeconds", 0),
+        "frame_count": data.get("frameCount", 0),
+        "frames": data.get("frames", []),
+        "inputs": data.get("inputs", []),
+    }
+
+    replay_id = save_replay(replay_doc)
+    if replay_id is None:
+        return jsonify({"error": "Failed to save replay (DB unavailable)"}), 503
+
+    return jsonify({"id": replay_id, "maze_id": maze_id}), 201
+
+
+@app.route("/replay/<replay_id>", methods=["GET"])
+def get_game_replay(replay_id):
+    """Retrieve a previously saved replay by its ID."""
+    doc = get_replay_by_id(replay_id)
+    if doc is None:
+        return jsonify({"error": f"Replay '{replay_id}' not found"}), 404
+
+    doc["id"] = doc.pop("_id")
+    return jsonify(doc)
+
+
+@app.route("/replays", methods=["GET"])
+def get_all_replays():
+    """List recent replays (metadata only, no frames/inputs)."""
+    maze_id = request.args.get("maze_id")
+    limit = request.args.get("limit", 50, type=int)
+    docs = list_replays(maze_id=maze_id, limit=limit)
+    results = []
+    for doc in docs:
+        results.append({
+            "id": doc["_id"],
+            "maze_id": doc.get("maze_id"),
+            "algorithm": doc.get("algorithm"),
+            "maze_width": doc.get("maze_width"),
+            "maze_height": doc.get("maze_height"),
+            "player_type": doc.get("player_type"),
+            "bot_strategy": doc.get("bot_strategy"),
+            "final_score": doc.get("final_score", 0),
+            "won": doc.get("won", False),
+            "duration_seconds": doc.get("duration_seconds", 0),
+            "frame_count": doc.get("frame_count", 0),
             "created_at": str(doc.get("created_at", "")),
         })
     return jsonify(results)

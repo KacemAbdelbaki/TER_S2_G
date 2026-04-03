@@ -26,7 +26,21 @@ public class GameRecorder {
         public FrameRecord() {}
     }
 
+    /** A single player input event (successful move). */
+    public static class InputRecord {
+        public float timestamp;
+        public int dr, dc;
+
+        public InputRecord() {}
+        public InputRecord(float timestamp, int dr, int dc) {
+            this.timestamp = timestamp;
+            this.dr = dr;
+            this.dc = dc;
+        }
+    }
+
     private Array<FrameRecord> frames = new Array<>();
+    private Array<InputRecord> inputs = new Array<>();
     private String mazeId;
     private String algorithm;
     private int mazeWidth, mazeHeight;
@@ -72,10 +86,22 @@ public class GameRecorder {
         recording = false;
     }
 
+    /**
+     * Record a successful player input (called by Player on each tryMove success).
+     */
+    public void recordInput(float timestamp, int dr, int dc) {
+        if (!recording) return;
+        inputs.add(new InputRecord(timestamp, dr, dc));
+    }
+
     public boolean isRecording() { return recording; }
     public int getFrameCount() { return frames.size; }
     public Array<FrameRecord> getFrames() { return frames; }
+    public Array<InputRecord> getInputs() { return inputs; }
     public String getMazeId() { return mazeId; }
+    public String getAlgorithm() { return algorithm; }
+    public int getMazeWidth() { return mazeWidth; }
+    public int getMazeHeight() { return mazeHeight; }
 
     /** Serialize the entire recording to a JSON string. */
     public String toJson() {
@@ -91,6 +117,15 @@ public class GameRecorder {
         sb.append("\"frameCount\":").append(frames.size).append(",");
         sb.append("\"frames\":");
         sb.append(json.toJson(frames, Array.class, FrameRecord.class));
+        sb.append(",\"inputs\":[");
+        for (int i = 0; i < inputs.size; i++) {
+            InputRecord ir = inputs.get(i);
+            if (i > 0) sb.append(",");
+            sb.append("{\"timestamp\":").append(ir.timestamp)
+              .append(",\"dr\":").append(ir.dr)
+              .append(",\"dc\":").append(ir.dc).append("}");
+        }
+        sb.append("]");
         sb.append("}");
 
         return sb.toString();
@@ -98,7 +133,7 @@ public class GameRecorder {
 
     /** Deserialize a recording from a JSON string. Returns a new GameRecorder (non-recording). */
     public static GameRecorder fromJson(String jsonString) {
-        Json json = new Json();
+        //Json json = new Json();
         JsonValue root = new com.badlogic.gdx.utils.JsonReader().parse(jsonString);
 
         String mazeId = root.getString("mazeId", "");
@@ -132,6 +167,17 @@ public class GameRecorder {
                 frame.ghostModes = gm != null ? gm.asIntArray() : new int[0];
 
                 recorder.frames.add(frame);
+            }
+        }
+
+        JsonValue inputsArray = root.get("inputs");
+        if (inputsArray != null) {
+            for (JsonValue iv = inputsArray.child; iv != null; iv = iv.next) {
+                InputRecord input = new InputRecord();
+                input.timestamp = iv.getFloat("timestamp", 0);
+                input.dr = iv.getInt("dr", 0);
+                input.dc = iv.getInt("dc", 0);
+                recorder.inputs.add(input);
             }
         }
 

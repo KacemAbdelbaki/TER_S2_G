@@ -30,11 +30,13 @@ try:
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
     db = client["pacman_ter"]
     mazes_collection = db["mazes"]
+    replays_collection = db["replays"]
 except PyMongoError as exc:
     log.warning("MongoDB connection failed: %s — persistence disabled", exc)
     client = None
     db = None
     mazes_collection = None
+    replays_collection = None
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +126,64 @@ def list_mazes(limit=50):
         return []
     cursor = (
         mazes_collection.find({}, {"maze": 0})
+        .sort("created_at", -1)
+        .limit(limit)
+    )
+    results = []
+    for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        results.append(doc)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Replay CRUD helpers
+# ---------------------------------------------------------------------------
+
+def save_replay(replay_dict):
+    """
+    Persist a game replay to MongoDB.
+
+    Returns the inserted document's string ID, or *None* if the DB is unavailable.
+    """
+    if replays_collection is None:
+        return None
+    try:
+        replay_dict["created_at"] = datetime.now(timezone.utc)
+        result = replays_collection.insert_one(replay_dict)
+        return str(result.inserted_id)
+    except PyMongoError as exc:
+        log.warning("save_replay failed: %s", exc)
+        return None
+
+
+def get_replay_by_id(replay_id):
+    """Retrieve a full replay document by its string ID (returns None if missing)."""
+    if replays_collection is None:
+        return None
+    try:
+        oid = ObjectId(replay_id)
+    except InvalidId:
+        return None
+    doc = replays_collection.find_one({"_id": oid})
+    if doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+
+def list_replays(maze_id=None, limit=50):
+    """
+    List recent replays (metadata only — heavy ``frames`` and ``inputs`` excluded).
+
+    Optionally filter by *maze_id*.
+    """
+    if replays_collection is None:
+        return []
+    query = {}
+    if maze_id:
+        query["maze_id"] = maze_id
+    cursor = (
+        replays_collection.find(query, {"frames": 0, "inputs": 0})
         .sort("created_at", -1)
         .limit(limit)
     )

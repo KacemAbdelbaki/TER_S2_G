@@ -23,4 +23,16 @@ public interface Agent {
 
     /** Smoothly interpolated screen Y. */
     float getVisualY();
+
+    /** Whether this agent has a pending movement request this frame. */
+    default boolean hasPendingMove() { return false; }
+
+    /** Requested row delta (-1=up, 1=down, 0=none). */
+    default int getPendingDR() { return 0; }
+
+    /** Requested column delta (-1=left, 1=right, 0=none). */
+    default int getPendingDC() { return 0; }
+
+    /** Acknowledge that the pending move has been consumed. */
+    default void consumeMove() {}
 }

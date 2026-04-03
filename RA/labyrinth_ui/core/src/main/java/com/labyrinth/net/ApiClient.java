@@ -218,4 +218,147 @@ public class ApiClient {
             }
         });
     }
+
+    // ------------------------------------------------------------------
+    // Replay callbacks
+    // ------------------------------------------------------------------
+
+    /** Called when a replay is saved. */
+    public interface ReplaySaveCallback {
+        void onSuccess(String replayId);
+        void onError(String message);
+    }
+
+    /** Called when a full replay is loaded. */
+    public interface ReplayLoadCallback {
+        void onSuccess(String replayJson);
+        void onError(String message);
+    }
+
+    /** Called when the replay list is loaded. */
+    public interface ReplayListCallback {
+        void onSuccess(String listJson);
+        void onError(String message);
+    }
+
+    // ------------------------------------------------------------------
+    // Replay API calls
+    // ------------------------------------------------------------------
+
+    /**
+     * Save a replay to the cloud.
+     *
+     * @param replayJson full JSON body produced by the game
+     * @param callback   called on the GL thread when done
+     */
+    public void saveReplay(String replayJson, ReplaySaveCallback callback) {
+        String url = baseUrl + "/replay";
+
+        Net.HttpRequest request = new HttpRequestBuilder()
+                .newRequest()
+                .method(Net.HttpMethods.POST)
+                .url(url)
+                .timeout(15000)
+                .header("Content-Type", "application/json")
+                .content(replayJson)
+                .build();
+
+        Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                String json = httpResponse.getResultAsString();
+                try {
+                    JsonValue root = new JsonReader().parse(json);
+                    if (root.has("error")) {
+                        Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
+                    } else {
+                        String id = root.getString("id");
+                        Gdx.app.postRunnable(() -> callback.onSuccess(id));
+                    }
+                } catch (Exception e) {
+                    Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                }
+            }
+
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.postRunnable(() -> callback.onError("Save replay failed: " + t.getMessage()));
+            }
+
+            @Override
+            public void cancelled() {
+                Gdx.app.postRunnable(() -> callback.onError("Request cancelled"));
+            }
+        });
+    }
+
+    /**
+     * Load a full replay from the cloud by ID.
+     */
+    public void loadReplay(String replayId, ReplayLoadCallback callback) {
+        String url = baseUrl + "/replay/" + replayId;
+
+        Net.HttpRequest request = new HttpRequestBuilder()
+                .newRequest()
+                .method(Net.HttpMethods.GET)
+                .url(url)
+                .timeout(15000)
+                .build();
+
+        Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                String json = httpResponse.getResultAsString();
+                Gdx.app.postRunnable(() -> callback.onSuccess(json));
+            }
+
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.postRunnable(() -> callback.onError("Load replay failed: " + t.getMessage()));
+            }
+
+            @Override
+            public void cancelled() {
+                Gdx.app.postRunnable(() -> callback.onError("Request cancelled"));
+            }
+        });
+    }
+
+    /**
+     * List recent replays (metadata only).
+     *
+     * @param mazeId optional filter — pass null for all replays
+     * @param limit  max results
+     */
+    public void listReplays(String mazeId, int limit, ReplayListCallback callback) {
+        StringBuilder url = new StringBuilder(baseUrl).append("/replays?limit=").append(limit);
+        if (mazeId != null && !mazeId.isEmpty()) {
+            url.append("&maze_id=").append(mazeId);
+        }
+
+        Net.HttpRequest request = new HttpRequestBuilder()
+                .newRequest()
+                .method(Net.HttpMethods.GET)
+                .url(url.toString())
+                .timeout(15000)
+                .build();
+
+        Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                String json = httpResponse.getResultAsString();
+                Gdx.app.postRunnable(() -> callback.onSuccess(json));
+            }
+
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.postRunnable(() -> callback.onError("List replays failed: " + t.getMessage()));
+            }
+
+            @Override
+            public void cancelled() {
+                Gdx.app.postRunnable(() -> callback.onError("Request cancelled"));
+            }
+        });
+    }
 }
