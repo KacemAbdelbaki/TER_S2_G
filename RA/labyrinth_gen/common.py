@@ -107,6 +107,23 @@ def add_cycles(grid, p=0.08):
                     nei.walls[0] = False
 
 
+def seal_borders(grid):
+    """Ensure all outer boundary walls are closed.
+
+    Post-processing steps (mirror, insert_middle_column, add_cycles) may
+    inadvertently open walls on the grid perimeter.  This pass forces every
+    border cell's outward-facing wall to True so nothing can escape.
+    """
+    H = len(grid)
+    W = len(grid[0]) if H else 0
+    for c in range(W):
+        grid[0][c].walls[0] = True       # top row  → Up wall
+        grid[H - 1][c].walls[2] = True   # bottom row → Down wall
+    for r in range(H):
+        grid[r][0].walls[3] = True       # left col → Left wall
+        grid[r][W - 1].walls[1] = True   # right col → Right wall
+
+
 def mirror_map(grid):
     """Mirror *grid* horizontally, producing a symmetric maze of double width."""
     H = len(grid)

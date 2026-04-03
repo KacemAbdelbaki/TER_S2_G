@@ -14,6 +14,7 @@ from common import (
     Cell,
     initMap,
     add_cycles,
+    seal_borders,
     mirror_map,
     insert_middle_column,
     add_TP_Points,
@@ -129,6 +130,7 @@ def full_maze(height, width, record_steps=False):
     for _ in range(2):
         add_TP_Points(final)
 
+    seal_borders(final)
     return maze_to_json(final, steps=steps)
 
 

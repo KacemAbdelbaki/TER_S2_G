@@ -25,6 +25,7 @@ public class MenuScreen implements Screen {
 
     // Widgets
     private SelectBox<String> algoSelect;
+    private SelectBox<String> diffSelect;
     private Slider heightSlider;
     private Slider widthSlider;
     private Label heightValue;
@@ -58,11 +59,18 @@ public class MenuScreen implements Screen {
         root.add(title).colspan(2).padBottom(30).row();
 
         // Algorithm
-        Label algoLbl = new Label("Algorithm:", skin, "default");
+        Label algoLbl = new Label("Generation:", skin, "default");
         algoSelect = new SelectBox<>(skin);
         algoSelect.setItems("DFS", "Kruskal", "Prim", "Tetris");
         root.add(algoLbl).right().padRight(12);
         root.add(algoSelect).width(200).left().row();
+
+        // Ghost Difficulty
+        Label diffLbl = new Label("Ghost AI:", skin, "default");
+        diffSelect = new SelectBox<>(skin);
+        diffSelect.setItems("CLASSIC", "A_STAR");
+        root.add(diffLbl).right().padRight(12);
+        root.add(diffSelect).width(200).left().row();
 
         // Height slider
         Label hLbl = new Label("Height:", skin, "default");
@@ -153,7 +161,8 @@ public class MenuScreen implements Screen {
         statusLabel.setText("Generating...");
         statusLabel.setColor(NeonSkin.CYAN);
 
-        game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl));
+        String diff = diffSelect.getSelected();
+        game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff));
     }
 
     @Override

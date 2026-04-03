@@ -23,6 +23,7 @@ public class MazeHud {
     private Label dotsLabel;
     private Label stepLabel;
     private Label helpLabel;
+    private Label difficultyLabel;
     private Label statusLabel;
     private TextButton backButton;
     private TextButton pauseButton;
@@ -64,6 +65,7 @@ public class MazeHud {
         scoreLabel = new Label("SCORE: 0", skin, "default");
         livesLabel = new Label("LIVES: 3", skin, "default");
         dotsLabel = new Label("", skin, "small");
+        difficultyLabel = new Label("AI: CLASSIC", skin, "default");
         statusLabel = new Label("", skin, "default");
 
         backButton = new TextButton("< Menu", skin, "default");
@@ -80,6 +82,7 @@ public class MazeHud {
         topBar.add(dotsLabel).padRight(20);
         topBar.add(scoreLabel).padRight(20);
         topBar.add(livesLabel).padRight(20);
+        topBar.add(difficultyLabel).padRight(20);
         topBar.add(timerLabel).expandX().right().padRight(12);
         stage.addActor(topBar);
 
@@ -116,7 +119,7 @@ public class MazeHud {
         bottomBar.setFillParent(true);
         bottomBar.bottom().padBottom(12);
 
-        helpLabel = new Label("WASD / Arrows to move  |  Scroll to zoom  |  ESC for menu", skin, "small");
+        helpLabel = new Label("WASD/Arrows: Move | Scroll: Zoom | G: Toggle Ghost AI (A*/Classic) | ESC: Menu", skin, "small");
         bottomBar.add(helpLabel);
         stage.addActor(bottomBar);
 
@@ -199,6 +202,9 @@ public class MazeHud {
         } else if (!playerActive && animActive) {
             helpLabel.setText("Watching generation animation...");
         }
+    }
+    public void setDifficulty(String diffStr) {
+        difficultyLabel.setText("AI: " + diffStr);
     }
 
     public void showLoading() {

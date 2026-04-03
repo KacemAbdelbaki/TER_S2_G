@@ -38,7 +38,7 @@ public class Player {
     public static final float MOUTH_MAX = 45f;     // max mouth opening degrees
 
     // Movement settings
-    private float moveSpeed = 12f;
+    private float moveSpeed = 18f;
 
     // Trail & dots
     public boolean[][] visitedCells;
@@ -164,8 +164,14 @@ public class Player {
             moveCooldown -= delta;
         }
 
-        // Poll keyboard input
-        if (!moving && moveCooldown <= 0) {
+        // Gate input on VISUAL arrival — sprite must reach its target before
+        // the next grid-level move is allowed.  This prevents the logical
+        // position from racing ahead of the visual, which looked like phasing
+        // through walls.
+        boolean visuallyArrived = Math.abs(visualX - targetX) < 0.5f
+                               && Math.abs(visualY - targetY) < 0.5f;
+
+        if (visuallyArrived && moveCooldown <= 0) {
             if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP)) {
                 tryMove(-1, 0);
             } else if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) {
@@ -255,7 +261,10 @@ public class Player {
     public void setTarget(float tx, float ty) {
         this.targetX = tx;
         this.targetY = ty;
-        this.moving = true;
+        // Only flag as moving when the visual hasn't reached the target yet.
+        if (Math.abs(visualX - tx) > 0.5f || Math.abs(visualY - ty) > 0.5f) {
+            this.moving = true;
+        }
     }
 
     public boolean isWon() { return won; }

@@ -58,6 +58,7 @@ public class MazeScreen implements Screen {
     // Player (Pac-Man)
     private Player player;
     private boolean playerActive = false;
+    private int prevGridRow = -1, prevGridCol = -1;
 
     // HUD
     private MazeHud hud;
@@ -89,15 +90,17 @@ public class MazeScreen implements Screen {
 
     // Camera drag
     private boolean dragging = false;
+    private Ghost.Difficulty startingDifficulty;
 
     public MazeScreen(Main game, String algorithm, int height, int width,
-                      boolean animated, String baseUrl) {
+                      boolean animated, String baseUrl, String diffString) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
         this.requestWidth = width;
         this.animated = animated;
         this.baseUrl = baseUrl;
+        this.startingDifficulty = Ghost.Difficulty.valueOf(diffString);
     }
 
     @Override
@@ -113,6 +116,7 @@ public class MazeScreen implements Screen {
         player = new Player();
 
         hud = new MazeHud(game.skin, () -> game.setScreen(new MenuScreen(game)));
+        hud.setDifficulty(startingDifficulty.name());
 
         // Wire rating listener
         hud.setRatingListener(rating -> {
@@ -244,6 +248,8 @@ public class MazeScreen implements Screen {
         float px = mazeRenderer.gridToScreenX(start[1]) + mazeRenderer.getCellSize() / 2f;
         float py = mazeRenderer.gridToScreenY(start[0], maze.height) + mazeRenderer.getCellSize() / 2f;
         player.setVisualPosition(px, py);
+        prevGridRow = start[0];
+        prevGridCol = start[1];
 
         // Spawn ghosts inside the ghost room
         spawnGhosts();
@@ -283,6 +289,7 @@ public class MazeScreen implements Screen {
             float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
             float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
             g.setVisualPosition(gx, gy);
+            g.setDifficulty(startingDifficulty);
         }
 
         modeTimer = 0f;
@@ -304,6 +311,19 @@ public class MazeScreen implements Screen {
             return;
         }
 
+        // Academic metrics CSV export
+        if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.P)) {
+            if (recorder != null) {
+                com.labyrinth.replay.AISimulator.runSimulation(recorder, maze);
+                if (hud != null) hud.getStage().getActors().forEach(a -> {
+                   if (a instanceof com.badlogic.gdx.scenes.scene2d.ui.Table) {
+                       // Temporary visual feedback
+                       System.out.println("Exported CSV!");
+                   }
+                });
+            }
+        }
+
         // Update animation
         if (animationMode) {
             animator.update(delta);
@@ -322,12 +342,20 @@ public class MazeScreen implements Screen {
                 activateFrightened();
             }
 
-            float tx = mazeRenderer.gridToScreenX(player.gridCol) + mazeRenderer.getCellSize() / 2f;
-            float ty = mazeRenderer.gridToScreenY(player.gridRow, maze.height) + mazeRenderer.getCellSize() / 2f;
-            player.setTarget(tx, ty);
+            // Only update visual target when grid position actually changed
+            if (player.gridRow != prevGridRow || player.gridCol != prevGridCol) {
+                float tx = mazeRenderer.gridToScreenX(player.gridCol) + mazeRenderer.getCellSize() / 2f;
+                float ty = mazeRenderer.gridToScreenY(player.gridRow, maze.height) + mazeRenderer.getCellSize() / 2f;
+                player.setTarget(tx, ty);
+                prevGridRow = player.gridRow;
+                prevGridCol = player.gridCol;
+            }
 
             // Update ghosts
             if (ghosts != null && !player.isWon() && !gameOver) {
+                if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.G)) {
+                    toggleDifficulty();
+                }
                 updateGhosts(delta);
             }
 
@@ -370,6 +398,7 @@ public class MazeScreen implements Screen {
 
         // Render active ghosts (drawn over the maze, not the static ghost-room ghosts)
         if (playerActive && ghosts != null) {
+            mazeRenderer.renderGhostPaths(ghosts, player, maze, camera);
             mazeRenderer.renderActiveGhosts(ghosts, camera);
         }
 
@@ -382,6 +411,19 @@ public class MazeScreen implements Screen {
                 animationMode ? animator : null, playerActive, player.isWon(), gameOver);
         hud.getStage().act(delta);
         hud.getStage().draw();
+    }
+
+    private void toggleDifficulty() {
+        if (ghosts == null || ghosts.length == 0) return;
+        Ghost.Difficulty current = ghosts[0].getDifficulty();
+        Ghost.Difficulty next = (current == Ghost.Difficulty.CLASSIC) ? Ghost.Difficulty.A_STAR : Ghost.Difficulty.CLASSIC;
+        for (Ghost g : ghosts) {
+            g.setDifficulty(next);
+        }
+        if (hud != null) {
+            hud.setDifficulty(next.name());
+        }
+        System.out.println("GHOSTS DIFFICULTY TOGGLED TO: " + next);
     }
 
     /**
@@ -427,6 +469,9 @@ public class MazeScreen implements Screen {
                 if (g.isInGhostRoom()) {
                     // Float upward out of ghost room (ignoring walls)
                     g.exitGhostRoom();
+                } else if (g.getMode() == Ghost.GhostMode.EATEN) {
+                    // EATEN ghosts ignore walls and move directly toward ghost room
+                    g.moveTowardGhostRoom();
                 } else {
                     int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
                     int dir = g.chooseDirection(target[0], target[1]);

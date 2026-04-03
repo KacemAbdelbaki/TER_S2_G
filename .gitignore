@@ -39,3 +39,6 @@ desktop.ini
 # === Misc ===
 *.log
 *.tmp
+
+*.csv
+*.pyc

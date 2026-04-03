@@ -393,6 +393,107 @@ public class MazeRenderer {
         sr.end();
     }
 
+    /**
+     * Renders a predicted path showing the exact tiles each ghost is planning to move to next.
+     * This uses the same greedy pathfinding logic that ghosts use to decide their movements.
+     */
+    public void renderGhostPaths(Ghost[] ghosts, com.labyrinth.player.Player player, MazeData maze, OrthographicCamera camera) {
+        if (ghosts == null || player == null || maze == null) return;
+        
+        sr.setProjectionMatrix(camera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        
+        sr.begin(ShapeRenderer.ShapeType.Line);
+        Gdx.gl.glLineWidth(3f);
+        
+        int[] DR = {0, -1, 0, 1};
+        int[] DC = {1, 0, -1, 0};
+        int[] DIR_TO_WALL = {1, 0, 3, 2};
+        int[] priority = {1, 2, 3, 0}; // Up, Left, Down, Right 
+
+        for (int i = 0; i < ghosts.length; i++) {
+            Ghost g = ghosts[i];
+            if (g.getMode() == Ghost.GhostMode.EATEN || g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                continue; // Do not predict paths for eaten or frightened ghosts
+            }
+            if (g.isInGhostRoom()) continue; // Ghost is floating out, predicting path is tricky here
+            
+            Color color = GHOST_COLORS[i % GHOST_COLORS.length].cpy();
+            color.a = 0.35f; // Semi-transparent
+            sr.setColor(color);
+            
+            int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
+            
+            // Simulate path for up to 12 steps
+            int curRow = g.getGridRow();
+            int curCol = g.getGridCol();
+            int curDir = g.getDirection();
+            
+            float lastX = gridToScreenX(curCol) + cellSize / 2f;
+            float lastY = gridToScreenY(curRow, maze.height) + cellSize / 2f;
+            
+            for (int step = 0; step < 12; step++) {
+                if (curRow == target[0] && curCol == target[1]) {
+                    sr.circle(lastX, lastY, cellSize * 0.25f);
+                    break;
+                }
+                
+                int reverseDir = (curDir + 2) % 4;
+                int bestDir = -1;
+                float bestDist = Float.MAX_VALUE;
+                
+                MazeCell current = maze.getCell(curRow, curCol);
+                if (current == null) break;
+                
+                for (int d : priority) {
+                    if (d == reverseDir) continue; 
+                    if (current.hasWall(DIR_TO_WALL[d])) continue;
+                    
+                    int newR = curRow + DR[d];
+                    int newC = curCol + DC[d];
+                    float dist = (newR - target[0]) * (newR - target[0]) + (newC - target[1]) * (newC - target[1]);
+                    
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestDir = d;
+                    }
+                }
+                
+                // Allow reverse only if stuck (though classic ghosts don't do this, it's a safety)
+                if (bestDir == -1) {
+                    if (!current.hasWall(DIR_TO_WALL[reverseDir])) {
+                        bestDir = reverseDir;
+                    } else {
+                        break; // Dead end
+                    }
+                }
+                
+                curDir = bestDir;
+                curRow += DR[bestDir];
+                curCol += DC[bestDir];
+                
+                float nextX = gridToScreenX(curCol) + cellSize / 2f;
+                float nextY = gridToScreenY(curRow, maze.height) + cellSize / 2f;
+                
+                sr.line(lastX, lastY, nextX, nextY);
+                lastX = nextX;
+                lastY = nextY;
+            }
+            
+            // Draw a cross indicating their true target tile, even if they haven't reached it in 12 steps
+            float targetX = gridToScreenX(target[1]) + cellSize / 2f;
+            float targetY = gridToScreenY(target[0], maze.height) + cellSize / 2f;
+            color.a = 0.15f;
+            sr.setColor(color);
+            float crossR = cellSize * 0.4f;
+            sr.line(targetX - crossR, targetY - crossR, targetX + crossR, targetY + crossR);
+            sr.line(targetX - crossR, targetY + crossR, targetX + crossR, targetY - crossR);
+        }
+        
+        sr.end();
+        Gdx.gl.glLineWidth(1f);
+    }
     public void dispose() {
         sr.dispose();
     }
