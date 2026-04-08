@@ -16,6 +16,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.labyrinth.Main;
+import com.labyrinth.agents.Blinky;
+import com.labyrinth.agents.Clyde;
+import com.labyrinth.agents.Ghost;
+import com.labyrinth.agents.Inky;
+import com.labyrinth.agents.Pinky;
 import com.labyrinth.maze.MazeData;
 import com.labyrinth.maze.MazeRenderer;
 import com.labyrinth.net.ApiClient;
@@ -58,19 +63,36 @@ public class ReplayScreen implements Screen {
 
     // HUD
     private Stage hudStage;
-    private Label statusLbl, timeLbl, scoreLbl, speedLbl, frameLbl;
+    private Label statusLbl, timeLbl, scoreLbl, speedLbl, frameLbl, metadataLbl;
     private Slider seekSlider;
     private boolean userSeeking = false;
+    
+    // Ghost simulation
+    private boolean spawnGhosts = false;
+    private Ghost.Difficulty ghostDifficulty = Ghost.Difficulty.CLASSIC;
+    private Ghost[] replayGhosts;
+    private float ghostModeTimer = 0f;
+    private int ghostModePhase = 0;
+    private boolean frightenedActive = false;
+    private float frightenedTimer = 0f;
+
+    // Ghost mode timer (same as MazeScreen)
+    private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
+    private static final float FRIGHTENED_DURATION = 6f;
 
     /**
      * @param game       main game instance
      * @param replayJson full JSON of the replay document from the cloud
      * @param baseUrl    API base URL for fetching the maze
+     * @param spawnGhosts whether to spawn simulated ghosts
+     * @param ghostDiff  ghost AI difficulty (if spawning ghosts)
      */
-    public ReplayScreen(Main game, String replayJson, String baseUrl) {
+    public ReplayScreen(Main game, String replayJson, String baseUrl, boolean spawnGhosts, Ghost.Difficulty ghostDiff) {
         this.game = game;
         this.replayJson = replayJson;
         this.baseUrl = baseUrl;
+        this.spawnGhosts = spawnGhosts;
+        this.ghostDifficulty = ghostDiff != null ? ghostDiff : Ghost.Difficulty.CLASSIC;
     }
 
     @Override
@@ -143,6 +165,7 @@ public class ReplayScreen implements Screen {
         scoreLbl = new Label("SCORE: 0", skin, "default");
         speedLbl = new Label("1.0x", skin, "small");
         frameLbl = new Label("Frame 0/0", skin, "small");
+        metadataLbl = new Label("", skin, "small");
 
         top.add(backBtn).padRight(12);
         top.add(scoreLbl).padRight(20);
@@ -152,7 +175,8 @@ public class ReplayScreen implements Screen {
         top.add(speedUp).padRight(4);
         top.add(resetBtn).padRight(12);
         top.add(speedLbl).padRight(12);
-        top.add(frameLbl);
+        top.add(frameLbl).padRight(12);
+        top.add(metadataLbl);
         hudStage.addActor(top);
 
         // Seek slider at bottom
@@ -217,10 +241,8 @@ public class ReplayScreen implements Screen {
         apiClient = new ApiClient(baseUrl);
         String mazeId = recorder.getMazeId();
         if (mazeId != null && !mazeId.isEmpty()) {
-            // We need to fetch the maze by ID — use the existing fetchMaze with algorithm+size
-            apiClient.fetchMaze(recorder.getAlgorithm(),
-                recorder.getMazeHeight(), recorder.getMazeWidth(),
-                false, new ApiClient.MazeCallback() {
+            // Fetch the specific maze used in this recording
+            apiClient.fetchMazeById(mazeId, new ApiClient.MazeCallback() {
                     @Override public void onSuccess(MazeData data) {
                         maze = data;
                         loading = false;
@@ -246,6 +268,72 @@ public class ReplayScreen implements Screen {
         powerPellets = new boolean[maze.height][maze.width];
         visitedCells = new boolean[maze.height][maze.width];
         statusLbl.setText("");
+        
+        // Spawn simulated ghosts if requested
+        if (spawnGhosts) {
+            spawnReplayGhosts();
+        }
+        
+        // Update metadata display
+        updateMetadataDisplay();
+    }
+    
+    private void updateMetadataDisplay() {
+        String agentType = recorder.getPacmanAgentType();
+        String ghostInfo;
+        if (spawnGhosts) {
+            ghostInfo = "Simulated (" + ghostDifficulty + ")";
+        } else if (recorder.hadOriginalGhosts()) {
+            ghostInfo = "Original";
+        } else {
+            ghostInfo = "None";
+        }
+        metadataLbl.setText("By: " + agentType.toUpperCase() + " | Ghosts: " + ghostInfo);
+    }
+    
+    private void spawnReplayGhosts() {
+        // Find ghost room center
+        int gMinR = maze.height, gMaxR = 0, gMinC = maze.width, gMaxC = 0;
+        boolean hasGhostRoom = false;
+        for (int r = 0; r < maze.height; r++) {
+            for (int c = 0; c < maze.width; c++) {
+                if (maze.grid[r][c] != null && maze.grid[r][c].isGhost) {
+                    hasGhostRoom = true;
+                    gMinR = Math.min(gMinR, r);
+                    gMaxR = Math.max(gMaxR, r);
+                    gMinC = Math.min(gMinC, c);
+                    gMaxC = Math.max(gMaxC, c);
+                }
+            }
+        }
+        
+        int topR = hasGhostRoom ? gMinR : maze.height / 2;
+        int bottomR = hasGhostRoom ? gMaxR : maze.height / 2;
+        int centerC = hasGhostRoom ? (gMinC + gMaxC) / 2 : maze.width / 2;
+        
+        // Blinky outside ghost room
+        int outsideR = Math.max(topR - 1, 0);
+        Blinky blinky = new Blinky(maze, outsideR, centerC);
+        
+        // Pinky, Inky, Clyde inside ghost room
+        Pinky pinky = new Pinky(maze, bottomR, centerC);
+        Inky inky = new Inky(maze, bottomR, Math.max(centerC - 1, 0), blinky);
+        Clyde clyde = new Clyde(maze, bottomR, Math.min(centerC + 1, maze.width - 1));
+        
+        replayGhosts = new Ghost[]{blinky, pinky, inky, clyde};
+        
+        // Set visual positions
+        float cs = mazeRenderer.getCellSize();
+        for (Ghost g : replayGhosts) {
+            float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
+            float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
+            g.setVisualPosition(gx, gy);
+            g.setDifficulty(ghostDifficulty);
+        }
+        
+        ghostModeTimer = 0f;
+        ghostModePhase = 0;
+        frightenedActive = false;
     }
 
     @Override
@@ -266,6 +354,11 @@ public class ReplayScreen implements Screen {
             hudStage.act(delta);
             hudStage.draw();
             return;
+        }
+
+        // Update simulated ghosts
+        if (spawnGhosts && replayGhosts != null && !replayer.isFinished()) {
+            updateReplayGhosts(delta, frame);
         }
 
         // Update HUD
@@ -291,17 +384,21 @@ public class ReplayScreen implements Screen {
 
         // Render Pac-Man at frame position
         float cs = mazeRenderer.getCellSize();
-        float cx = mazeRenderer.gridToScreenX(frame.playerCol) + cs / 2f;
-        float cy = mazeRenderer.gridToScreenY(frame.playerRow, maze.height) + cs / 2f;
-        // Use visual position from frame if available
+        float cx, cy;
+        // Use visual position from frame for perfect alignment
         if (frame.playerVisualX != 0 || frame.playerVisualY != 0) {
-            // Frame visual positions are in the original renderer's coordinate space
-            // Use grid-based position for correctness in the replay renderer
+            cx = frame.playerVisualX;
+            cy = frame.playerVisualY;
+        } else {
+            cx = mazeRenderer.gridToScreenX(frame.playerCol) + cs / 2f;
+            cy = mazeRenderer.gridToScreenY(frame.playerRow, maze.height) + cs / 2f;
         }
         renderPacManAt(cx, cy, frame.playerDir, cs * 0.42f, Color.YELLOW);
 
         // Render ghosts
-        if (frame.ghostRows != null && frame.ghostRows.length > 0) {
+        if (spawnGhosts && replayGhosts != null) {
+            mazeRenderer.renderActiveGhosts(replayGhosts, camera);
+        } else if (frame.ghostRows != null && frame.ghostRows.length > 0) {
             renderReplayGhosts(frame);
         }
 
@@ -345,6 +442,57 @@ public class ReplayScreen implements Screen {
         }
         pacmanSr.end();
     }
+    
+    /**
+     * Update simulated ghosts using real-time AI targeting the recorded Pacman position.
+     */
+    private void updateReplayGhosts(float delta, GameRecorder.FrameRecord frame) {
+        float cs = mazeRenderer.getCellSize();
+        
+        // Scatter/Chase mode switching (simplified - no frightened mode in replay)
+        ghostModeTimer += delta;
+        if (ghostModePhase < MODE_DURATIONS.length && ghostModeTimer >= MODE_DURATIONS[ghostModePhase]) {
+            ghostModeTimer = 0f;
+            ghostModePhase++;
+        }
+        boolean scatter = (ghostModePhase % 2 == 0);
+        for (Ghost g : replayGhosts) {
+            if (g.getMode() != Ghost.GhostMode.EATEN) {
+                g.setMode(scatter ? Ghost.GhostMode.SCATTER : Ghost.GhostMode.CHASE);
+            }
+        }
+        
+        // Move ghosts using AI targeting recorded Pacman position
+        for (Ghost g : replayGhosts) {
+            g.update(delta);
+            if (g.isReadyToMove()) {
+                if (g.isInGhostRoom()) {
+                    g.exitGhostRoom();
+                } else if (g.getMode() == Ghost.GhostMode.EATEN) {
+                    g.moveTowardGhostRoom();
+                } else {
+                    // Target recorded Pacman position from frame
+                    int[] target = g.getTargetTile(frame.playerRow, frame.playerCol, frame.playerDir);
+                    int dir = g.chooseDirection(target[0], target[1]);
+                    g.moveInDirection(dir);
+                }
+                g.resetMoveTimer();
+                
+                float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
+                float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
+                g.setVisualTarget(gx, gy);
+            }
+        }
+        
+        // Collision detection with recorded Pacman (just mark ghost as eaten, can't kill Pacman in replay)
+        for (Ghost g : replayGhosts) {
+            if (g.getGridRow() == frame.playerRow && g.getGridCol() == frame.playerCol) {
+                if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                    g.setMode(Ghost.GhostMode.EATEN);
+                }
+            }
+        }
+    }
 
     private static final Color[] GHOST_COLORS = {
         new Color(1f, 0f, 0f, 0.85f),      // Blinky red
@@ -362,8 +510,15 @@ public class ReplayScreen implements Screen {
         Gdx.gl.glEnable(GL20.GL_BLEND);
 
         for (int i = 0; i < frame.ghostRows.length && i < 4; i++) {
-            float gx = mazeRenderer.gridToScreenX(frame.ghostCols[i]) + cs / 2f;
-            float gy = mazeRenderer.gridToScreenY(frame.ghostRows[i], maze.height) + cs / 2f;
+            float gx, gy;
+            // Use recorded visual positions for perfect alignment
+            if (frame.ghostVisualX != null && i < frame.ghostVisualX.length && frame.ghostVisualX[i] != 0) {
+                gx = frame.ghostVisualX[i];
+                gy = frame.ghostVisualY[i];
+            } else {
+                gx = mazeRenderer.gridToScreenX(frame.ghostCols[i]) + cs / 2f;
+                gy = mazeRenderer.gridToScreenY(frame.ghostRows[i], maze.height) + cs / 2f;
+            }
 
             // Mode: 0=CHASE, 1=SCATTER, 2=FRIGHTENED, 3=EATEN
             Color c;

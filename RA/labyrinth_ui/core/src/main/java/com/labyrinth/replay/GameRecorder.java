@@ -22,6 +22,8 @@ public class GameRecorder {
         public int[] ghostRows;
         public int[] ghostCols;
         public int[] ghostModes; // ordinal of GhostMode enum
+        public float[] ghostVisualX;
+        public float[] ghostVisualY;
 
         public FrameRecord() {}
     }
@@ -46,6 +48,16 @@ public class GameRecorder {
     private int mazeWidth, mazeHeight;
     private boolean recording = true;
 
+    // Metadata for serialization
+    private int finalScore;
+    private int finalDotsEaten;
+    private boolean won;
+    private float durationSeconds;
+    private String playerType = "human";
+    private String botStrategy;
+    private boolean originalHadGhosts = true;
+    private String pacmanAgentType = "human";
+
     public GameRecorder(String mazeId, String algorithm, int mazeWidth, int mazeHeight) {
         this.mazeId = mazeId;
         this.algorithm = algorithm;
@@ -60,7 +72,8 @@ public class GameRecorder {
                             int playerRow, int playerCol, int playerDir,
                             float playerVisualX, float playerVisualY,
                             int score, int dotsEaten, int lives, boolean won,
-                            int[] ghostRows, int[] ghostCols, int[] ghostModes) {
+                            int[] ghostRows, int[] ghostCols, int[] ghostModes,
+                            float[] ghostVisualX, float[] ghostVisualY) {
         if (!recording) return;
 
         FrameRecord frame = new FrameRecord();
@@ -77,6 +90,8 @@ public class GameRecorder {
         frame.ghostRows = ghostRows != null ? ghostRows.clone() : new int[0];
         frame.ghostCols = ghostCols != null ? ghostCols.clone() : new int[0];
         frame.ghostModes = ghostModes != null ? ghostModes.clone() : new int[0];
+        frame.ghostVisualX = ghostVisualX != null ? ghostVisualX.clone() : new float[0];
+        frame.ghostVisualY = ghostVisualY != null ? ghostVisualY.clone() : new float[0];
 
         frames.add(frame);
     }
@@ -84,6 +99,14 @@ public class GameRecorder {
     /** Stop recording. */
     public void stop() {
         recording = false;
+    }
+
+    public void setMazeId(String mazeId) {
+        this.mazeId = mazeId;
+    }
+
+    public void setBotStrategy(String botStrategy) {
+        this.botStrategy = botStrategy;
     }
 
     /**
@@ -103,20 +126,44 @@ public class GameRecorder {
     public int getMazeWidth() { return mazeWidth; }
     public int getMazeHeight() { return mazeHeight; }
 
-    /** Serialize the entire recording to a JSON string. */
+    public void setFinalScore(int s) { this.finalScore = s; }
+    public void setFinalDotsEaten(int d) { this.finalDotsEaten = d; }
+    public void setWon(boolean w) { this.won = w; }
+    public void setDurationSeconds(float s) { this.durationSeconds = s; }
+    public void setPlayerType(String t) { this.playerType = t; }
+    public boolean hadOriginalGhosts() { return originalHadGhosts; }
+    public void setOriginalHadGhosts(boolean v) { this.originalHadGhosts = v; }
+    public String getPacmanAgentType() { return pacmanAgentType; }
+    public void setPacmanAgentType(String t) { this.pacmanAgentType = t; }
+
+    /** Serialize the entire recording to a standard JSON string. */
     public String toJson() {
         Json json = new Json();
         json.setOutputType(JsonWriter.OutputType.json);
 
         StringBuilder sb = new StringBuilder();
         sb.append("{");
-        sb.append("\"mazeId\":\"").append(mazeId != null ? mazeId : "").append("\",");
+        sb.append("\"maze_id\":\"").append(mazeId != null ? mazeId : "").append("\",");
         sb.append("\"algorithm\":\"").append(algorithm != null ? algorithm : "").append("\",");
-        sb.append("\"mazeWidth\":").append(mazeWidth).append(",");
-        sb.append("\"mazeHeight\":").append(mazeHeight).append(",");
-        sb.append("\"frameCount\":").append(frames.size).append(",");
+        sb.append("\"maze_width\":").append(mazeWidth).append(",");
+        sb.append("\"maze_height\":").append(mazeHeight).append(",");
+        sb.append("\"player_type\":\"").append(playerType).append("\",");
+        if (botStrategy != null) {
+            sb.append("\"bot_strategy\":\"").append(botStrategy).append("\",");
+        }
+        sb.append("\"original_had_ghosts\":").append(originalHadGhosts).append(",");
+        sb.append("\"pacman_agent_type\":\"").append(pacmanAgentType).append("\",");
+        sb.append("\"final_score\":").append(finalScore).append(",");
+        sb.append("\"final_dots_eaten\":").append(finalDotsEaten).append(",");
+        sb.append("\"won\":").append(won).append(",");
+        sb.append("\"duration_seconds\":").append(durationSeconds).append(",");
+        sb.append("\"frame_count\":").append(frames.size).append(",");
+        
+        // Frames - use LibGDX Json for correctly quoted standard JSON array
         sb.append("\"frames\":");
         sb.append(json.toJson(frames, Array.class, FrameRecord.class));
+
+        // Inputs
         sb.append(",\"inputs\":[");
         for (int i = 0; i < inputs.size; i++) {
             InputRecord ir = inputs.get(i);
@@ -136,13 +183,21 @@ public class GameRecorder {
         //Json json = new Json();
         JsonValue root = new com.badlogic.gdx.utils.JsonReader().parse(jsonString);
 
-        String mazeId = root.getString("mazeId", "");
+        String mazeId = root.has("maze_id") ? root.getString("maze_id") : root.getString("mazeId", "");
         String algorithm = root.getString("algorithm", "");
-        int w = root.getInt("mazeWidth", 0);
-        int h = root.getInt("mazeHeight", 0);
+        int w = root.has("maze_width") ? root.getInt("maze_width") : root.getInt("mazeWidth", 0);
+        int h = root.has("maze_height") ? root.getInt("maze_height") : root.getInt("mazeHeight", 0);
 
         GameRecorder recorder = new GameRecorder(mazeId, algorithm, w, h);
         recorder.recording = false;
+        recorder.setFinalScore(root.getInt("final_score", root.getInt("finalScore", 0)));
+        recorder.setFinalDotsEaten(root.getInt("final_dots_eaten", root.getInt("finalDotsEaten", 0)));
+        recorder.setWon(root.getBoolean("won", false));
+        recorder.setDurationSeconds(root.getFloat("duration_seconds", root.getFloat("durationSeconds", 0f)));
+        recorder.setPlayerType(root.getString("player_type", root.getString("playerType", "human")));
+        recorder.setBotStrategy(root.getString("bot_strategy", root.getString("botStrategy", null)));
+        recorder.setOriginalHadGhosts(root.getBoolean("original_had_ghosts", true));
+        recorder.setPacmanAgentType(root.getString("pacman_agent_type", "human"));
 
         JsonValue framesArray = root.get("frames");
         if (framesArray != null) {
@@ -162,9 +217,13 @@ public class GameRecorder {
                 JsonValue gr = fv.get("ghostRows");
                 JsonValue gc = fv.get("ghostCols");
                 JsonValue gm = fv.get("ghostModes");
+                JsonValue gx = fv.get("ghostVisualX");
+                JsonValue gy = fv.get("ghostVisualY");
                 frame.ghostRows = gr != null ? gr.asIntArray() : new int[0];
                 frame.ghostCols = gc != null ? gc.asIntArray() : new int[0];
                 frame.ghostModes = gm != null ? gm.asIntArray() : new int[0];
+                frame.ghostVisualX = gx != null ? gx.asFloatArray() : new float[0];
+                frame.ghostVisualY = gy != null ? gy.asFloatArray() : new float[0];
 
                 recorder.frames.add(frame);
             }

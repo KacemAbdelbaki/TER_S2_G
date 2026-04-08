@@ -60,8 +60,8 @@ public class ApiClient {
                 + "&width=" + width
                 + (withSteps ? "&steps=true" : "");
 
-        Net.HttpRequest request = new HttpRequestBuilder()
-                .newRequest()
+        HttpRequestBuilder builder = new HttpRequestBuilder();
+        Net.HttpRequest request = builder.newRequest()
                 .method(Net.HttpMethods.GET)
                 .url(url)
                 .timeout(15000)
@@ -70,18 +70,65 @@ public class ApiClient {
         Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
             @Override
             public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
                 String json = httpResponse.getResultAsString();
-                try {
-                    MazeData maze = parseJson(json);
-                    Gdx.app.postRunnable(() -> callback.onSuccess(maze));
-                } catch (Exception e) {
-                    Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                if (status >= 200 && status < 300) {
+                    try {
+                        MazeData maze = parseJson(json);
+                        Gdx.app.postRunnable(() -> callback.onSuccess(maze));
+                    } catch (Exception e) {
+                        Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                    }
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status + ": " + json));
                 }
             }
 
             @Override
             public void failed(Throwable t) {
                 Gdx.app.postRunnable(() -> callback.onError("Connection failed: " + t.getMessage()));
+            }
+
+            @Override
+            public void cancelled() {
+                Gdx.app.postRunnable(() -> callback.onError("Request cancelled"));
+            }
+        });
+    }
+
+    /**
+     * Fetch a specific maze from the API by its MongoDB ID.
+     */
+    public void fetchMazeById(String mazeId, MazeCallback callback) {
+        String url = baseUrl + "/labyrinth/" + mazeId;
+
+        HttpRequestBuilder builder = new HttpRequestBuilder();
+        Net.HttpRequest request = builder.newRequest()
+                .method(Net.HttpMethods.GET)
+                .url(url)
+                .timeout(15000)
+                .build();
+
+        Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
+            @Override
+            public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
+                String json = httpResponse.getResultAsString();
+                if (status >= 200 && status < 300) {
+                    try {
+                        MazeData maze = parseJson(json);
+                        Gdx.app.postRunnable(() -> callback.onSuccess(maze));
+                    } catch (Exception e) {
+                        Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                    }
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status + ": " + json));
+                }
+            }
+
+            @Override
+            public void failed(Throwable t) {
+                Gdx.app.postRunnable(() -> callback.onError("Fetch maze by ID failed: " + t.getMessage()));
             }
 
             @Override
@@ -191,19 +238,24 @@ public class ApiClient {
         Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
             @Override
             public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
                 String json = httpResponse.getResultAsString();
-                try {
-                    JsonReader reader = new JsonReader();
-                    JsonValue root = reader.parse(json);
-                    if (root.has("error")) {
-                        Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
-                    } else {
-                        float newRating = root.getFloat("new_rating");
-                        int totalVotes = root.getInt("total_votes");
-                        Gdx.app.postRunnable(() -> callback.onSuccess(newRating, totalVotes));
+                if (status >= 200 && status < 300) {
+                    try {
+                        JsonReader reader = new JsonReader();
+                        JsonValue root = reader.parse(json);
+                        if (root.has("error")) {
+                            Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
+                        } else {
+                            float newRating = root.getFloat("new_rating");
+                            int totalVotes = root.getInt("total_votes");
+                            Gdx.app.postRunnable(() -> callback.onSuccess(newRating, totalVotes));
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
                     }
-                } catch (Exception e) {
-                    Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status + ": " + json));
                 }
             }
 
@@ -266,17 +318,22 @@ public class ApiClient {
         Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
             @Override
             public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
                 String json = httpResponse.getResultAsString();
-                try {
-                    JsonValue root = new JsonReader().parse(json);
-                    if (root.has("error")) {
-                        Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
-                    } else {
-                        String id = root.getString("id");
-                        Gdx.app.postRunnable(() -> callback.onSuccess(id));
+                if (status >= 200 && status < 300) {
+                    try {
+                        JsonValue root = new JsonReader().parse(json);
+                        if (root.has("error")) {
+                            Gdx.app.postRunnable(() -> callback.onError(root.getString("error")));
+                        } else {
+                            String id = root.getString("id");
+                            Gdx.app.postRunnable(() -> callback.onSuccess(id));
+                        }
+                    } catch (Exception e) {
+                        Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
                     }
-                } catch (Exception e) {
-                    Gdx.app.postRunnable(() -> callback.onError("Parse error: " + e.getMessage()));
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status + ": " + json));
                 }
             }
 
@@ -308,8 +365,13 @@ public class ApiClient {
         Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
             @Override
             public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
                 String json = httpResponse.getResultAsString();
-                Gdx.app.postRunnable(() -> callback.onSuccess(json));
+                if (status >= 200 && status < 300) {
+                    Gdx.app.postRunnable(() -> callback.onSuccess(json));
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status));
+                }
             }
 
             @Override
@@ -346,8 +408,13 @@ public class ApiClient {
         Gdx.net.sendHttpRequest(request, new Net.HttpResponseListener() {
             @Override
             public void handleHttpResponse(Net.HttpResponse httpResponse) {
+                int status = httpResponse.getStatus().getStatusCode();
                 String json = httpResponse.getResultAsString();
-                Gdx.app.postRunnable(() -> callback.onSuccess(json));
+                if (status >= 200 && status < 300) {
+                    Gdx.app.postRunnable(() -> callback.onSuccess(json));
+                } else {
+                    Gdx.app.postRunnable(() -> callback.onError("HTTP Error " + status));
+                }
             }
 
             @Override

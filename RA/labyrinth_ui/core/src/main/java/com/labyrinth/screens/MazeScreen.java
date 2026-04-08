@@ -14,18 +14,13 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.labyrinth.Main;
+import com.labyrinth.agents.*;
 import com.labyrinth.maze.GenerationAnimator;
 import com.labyrinth.maze.MazeData;
 import com.labyrinth.maze.MazeRenderer;
 import com.labyrinth.net.ApiClient;
 import com.labyrinth.player.Player;
 import com.labyrinth.ui.MazeHud;
-import com.labyrinth.agents.Ghost;
-import com.labyrinth.agents.Blinky;
-import com.labyrinth.agents.Pinky;
-import com.labyrinth.agents.Inky;
-import com.labyrinth.agents.Clyde;
-import com.labyrinth.agents.HumanAgent;
 import com.labyrinth.replay.GameRecorder;
 
 /**
@@ -40,6 +35,9 @@ public class MazeScreen implements Screen {
     private final int requestHeight, requestWidth;
     private final boolean animated;
     private final String baseUrl;
+    private final boolean skipGhosts;
+    private final boolean aiAutoplay;
+    private final BotAgent.BotStrategy pacmanStrategy;
 
     // Rendering
     private OrthographicCamera camera;
@@ -50,7 +48,6 @@ public class MazeScreen implements Screen {
     // Data
     private MazeData maze;
     private boolean loading = true;
-    private String errorMessage = null;
 
     // Animation
     private GenerationAnimator animator;
@@ -85,6 +82,9 @@ public class MazeScreen implements Screen {
 
     // Replay recorder
     private GameRecorder recorder;
+    
+    // AI Autoplay
+    private BotAgent botAgent;
 
     // Game over flag
     private boolean gameOver = false;
@@ -97,7 +97,13 @@ public class MazeScreen implements Screen {
     private Ghost.Difficulty startingDifficulty;
 
     public MazeScreen(Main game, String algorithm, int height, int width,
-                      boolean animated, String baseUrl, String diffString) {
+                      boolean animated, String baseUrl, String diffString, boolean skipGhosts) {
+        this(game, algorithm, height, width, animated, baseUrl, diffString, skipGhosts, false, BotAgent.BotStrategy.GREEDY);
+    }
+    
+    public MazeScreen(Main game, String algorithm, int height, int width,
+                      boolean animated, String baseUrl, String diffString, boolean skipGhosts, 
+                      boolean aiAutoplay, BotAgent.BotStrategy pacmanStrategy) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
@@ -105,6 +111,9 @@ public class MazeScreen implements Screen {
         this.animated = animated;
         this.baseUrl = baseUrl;
         this.startingDifficulty = Ghost.Difficulty.valueOf(diffString);
+        this.skipGhosts = skipGhosts;
+        this.aiAutoplay = aiAutoplay;
+        this.pacmanStrategy = pacmanStrategy;
     }
 
     @Override
@@ -189,7 +198,6 @@ public class MazeScreen implements Screen {
             @Override
             public void onError(String message) {
                 loading = false;
-                errorMessage = message;
                 hud.showError(message);
             }
         });
@@ -255,15 +263,24 @@ public class MazeScreen implements Screen {
         prevGridRow = start[0];
         prevGridCol = start[1];
 
-        // Wire human input agent
-        player.setInputAgent(new HumanAgent());
+        // Wire input agent
+        if (aiAutoplay) {
+            botAgent = new BotAgent(maze, pacmanStrategy);
+            player.setInputAgent(botAgent);
+        } else {
+            player.setInputAgent(new HumanAgent());
+        }
 
         // Spawn ghosts inside the ghost room
-        spawnGhosts();
+        if (!skipGhosts) {
+            spawnGhosts();
+        }
 
         // Start recording
         recorder = new GameRecorder(
             maze.id, algorithm, maze.width, maze.height);
+        recorder.setPacmanAgentType(aiAutoplay ? "bot-" + pacmanStrategy.name().toLowerCase() : "human");
+        recorder.setOriginalHadGhosts(!skipGhosts);
         player.setRecorder(recorder);
     }
 
@@ -348,6 +365,11 @@ public class MazeScreen implements Screen {
 
         // Update Pac-Man
         if (playerActive && !gameOver) {
+            // Feed bot agent with current game state
+            if (aiAutoplay && botAgent != null) {
+                botAgent.setGameState(player.dots, ghosts, player.gridRow, player.gridCol);
+            }
+            
             player.update(delta);
 
             // Detect power pellet eat via flag set by Player
@@ -366,7 +388,7 @@ public class MazeScreen implements Screen {
             }
 
             // Update ghosts
-            if (ghosts != null && !player.isWon() && !gameOver) {
+            if (!skipGhosts && ghosts != null && !player.isWon() && !gameOver) {
                 if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.G)) {
                     toggleDifficulty();
                 }
@@ -376,18 +398,21 @@ public class MazeScreen implements Screen {
             // Record frame
             if (recorder != null && recorder.isRecording()) {
                 int[] gRows = new int[4], gCols = new int[4], gModes = new int[4];
-                if (ghosts != null) {
+                float[] gVX = new float[4], gVY = new float[4];
+                if (!skipGhosts && ghosts != null) {
                     for (int i = 0; i < ghosts.length; i++) {
                         gRows[i] = ghosts[i].getGridRow();
                         gCols[i] = ghosts[i].getGridCol();
                         gModes[i] = ghosts[i].getMode().ordinal();
+                        gVX[i] = ghosts[i].getVisualX();
+                        gVY[i] = ghosts[i].getVisualY();
                     }
                 }
                 recorder.recordFrame(player.getElapsedTime(),
                     player.gridRow, player.gridCol, player.direction,
                     player.visualX, player.visualY,
                     player.score, player.dotsEaten, player.lives,
-                    player.isWon(), gRows, gCols, gModes);
+                    player.isWon(), gRows, gCols, gModes, gVX, gVY);
             }
             if (player.isWon() && recorder != null && recorder.isRecording()) {
                 recorder.stop();
@@ -412,7 +437,7 @@ public class MazeScreen implements Screen {
         }
 
         // Render active ghosts (drawn over the maze, not the static ghost-room ghosts)
-        if (playerActive && ghosts != null) {
+        if (!skipGhosts && playerActive && ghosts != null) {
             mazeRenderer.renderGhostPaths(ghosts, player, maze, camera);
             mazeRenderer.renderActiveGhosts(ghosts, camera);
         }
@@ -536,41 +561,24 @@ public class MazeScreen implements Screen {
 
     /** Upload finished replay to the cloud (fire-and-forget). */
     private void saveReplayToCloud() {
-        if (replaySaved || recorder == null || apiClient == null) return;
+        if (replaySaved || recorder == null || apiClient == null || maze.id == null || maze.id.isEmpty()) {
+            Gdx.app.log("MazeScreen", "Cannot save replay: missing maze ID or already saved.");
+            return;
+        }
+
+        // Finalize recorder metadata
+        recorder.setFinalScore(player.score);
+        recorder.setFinalDotsEaten(player.dotsEaten);
+        recorder.setWon(player.isWon());
+        recorder.setDurationSeconds(player.getElapsedTime());
+        recorder.setPlayerType(aiAutoplay ? "bot" : "human");
+        recorder.setOriginalHadGhosts(!skipGhosts);
+        recorder.setMazeId(maze != null ? maze.id : null);
+
+        String replayJson = recorder.toJson();
         replaySaved = true;
 
-        // Build the JSON body expected by POST /replay
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        sb.append("\"maze_id\":\"").append(maze.id != null ? maze.id : "").append("\",");
-        sb.append("\"algorithm\":\"").append(algorithm).append("\",");
-        sb.append("\"maze_width\":").append(maze.width).append(",");
-        sb.append("\"maze_height\":").append(maze.height).append(",");
-        sb.append("\"player_type\":\"human\",");
-        sb.append("\"final_score\":").append(player.score).append(",");
-        sb.append("\"final_dots_eaten\":").append(player.dotsEaten).append(",");
-        sb.append("\"won\":").append(player.isWon()).append(",");
-        sb.append("\"duration_seconds\":").append(player.getElapsedTime()).append(",");
-        sb.append("\"frame_count\":").append(recorder.getFrameCount()).append(",");
-        // Include inputs from recorder
-        sb.append("\"inputs\":[");
-        for (int i = 0; i < recorder.getInputs().size; i++) {
-            GameRecorder.InputRecord ir = recorder.getInputs().get(i);
-            if (i > 0) sb.append(",");
-            sb.append("{\"timestamp\":").append(ir.timestamp)
-              .append(",\"dr\":").append(ir.dr)
-              .append(",\"dc\":").append(ir.dc).append("}");
-        }
-        sb.append("],");
-        // Include frames
-        sb.append("\"frames\":");
-        sb.append(new com.badlogic.gdx.utils.Json().toJson(
-            recorder.getFrames(),
-            com.badlogic.gdx.utils.Array.class,
-            GameRecorder.FrameRecord.class));
-        sb.append("}");
-
-        apiClient.saveReplay(sb.toString(), new ApiClient.ReplaySaveCallback() {
+        apiClient.saveReplay(replayJson, new ApiClient.ReplaySaveCallback() {
             @Override
             public void onSuccess(String replayId) {
                 Gdx.app.log("MazeScreen", "Replay saved: " + replayId);

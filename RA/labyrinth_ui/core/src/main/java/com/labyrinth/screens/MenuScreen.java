@@ -11,10 +11,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.labyrinth.Main;
 import com.labyrinth.agents.BotAgent;
 import com.labyrinth.maze.MazeRenderer;
-import com.labyrinth.net.ApiClient;
 import com.labyrinth.ui.NeonSkin;
-import com.labyrinth.ui.NeonSkin;
-
 
 /**
  * Main menu screen with algorithm selection, dimension controls,
@@ -34,11 +31,14 @@ public class MenuScreen implements Screen {
     private Label heightValue;
     private Label widthValue;
     private CheckBox animatedCheck;
+    private CheckBox ghostsCheck;
     private TextField serverField;
     private TextButton generateBtn;
     private Label statusLabel;
     private CheckBox raceCheck;
     private SelectBox<String> botStrategySelect;
+    private CheckBox aiAutoplayCheck;
+    private SelectBox<String> pacmanStrategySelect;
 
     public MenuScreen(Main game) {
         this.game = game;
@@ -120,6 +120,24 @@ public class MenuScreen implements Screen {
         raceCheck = new CheckBox("  Race vs Bot", skin);
         root.add(raceCheck).colspan(2).padTop(4).row();
 
+        // Enable ghosts
+        ghostsCheck = new CheckBox("  Enable Ghosts", skin);
+        ghostsCheck.setChecked(true);
+        root.add(ghostsCheck).colspan(2).padTop(4).row();
+
+        // AI Autoplay checkbox
+        aiAutoplayCheck = new CheckBox("  AI Autoplay (Demo)", skin);
+        root.add(aiAutoplayCheck).colspan(2).padTop(4).row();
+
+        // Pacman strategy selector (visible when AI Autoplay is checked)
+        Label pacmanStratLbl = new Label("Pacman AI:", skin, "default");
+        pacmanStrategySelect = new SelectBox<>(skin);
+        pacmanStrategySelect.setItems("GREEDY", "GHOST_AVOIDANCE");
+        pacmanStrategySelect.setVisible(false);
+        pacmanStratLbl.setVisible(false);
+        root.add(pacmanStratLbl).right().padRight(12);
+        root.add(pacmanStrategySelect).width(200).left().row();
+
         Label botLbl = new Label("Bot Strategy:", skin, "default");
         botStrategySelect = new SelectBox<>(skin);
         botStrategySelect.setItems("GREEDY", "GHOST_AVOIDANCE");
@@ -133,8 +151,20 @@ public class MenuScreen implements Screen {
             public void changed(ChangeEvent event, Actor actor) {
                 boolean on = raceCheck.isChecked();
                 botStrategySelect.setVisible(on);
-                // find bot label sibling (previous row)
                 botLbl.setVisible(on);
+                // Mutually exclusive with AI Autoplay
+                if (on) aiAutoplayCheck.setChecked(false);
+            }
+        });
+        
+        aiAutoplayCheck.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                boolean on = aiAutoplayCheck.isChecked();
+                pacmanStrategySelect.setVisible(on);
+                pacmanStratLbl.setVisible(on);
+                // Mutually exclusive with Race mode
+                if (on) raceCheck.setChecked(false);
             }
         });
 
@@ -155,7 +185,7 @@ public class MenuScreen implements Screen {
         root.add(generateBtn).colspan(2).width(280).height(55).padTop(24).row();
 
         // Watch Replay button
-        TextButton replayBtn = new TextButton("WATCH LAST REPLAY", skin, "default");
+        TextButton replayBtn = new TextButton("BROWSE REPLAYS", skin, "default");
         replayBtn.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -182,16 +212,12 @@ public class MenuScreen implements Screen {
         boolean animated = animatedCheck.isChecked();
         String server = serverField.getText().trim();
 
-        // Build base URL from the server field
         String baseUrl;
         if (server.startsWith("http://") || server.startsWith("https://")) {
-            // Full URL provided – use as-is (strip trailing slash)
             baseUrl = server.endsWith("/") ? server.substring(0, server.length() - 1) : server;
         } else if (server.contains(":")) {
-            // host:port format
             baseUrl = "http://" + server;
         } else {
-            // Plain hostname – assume http on port 5000
             baseUrl = "http://" + server + ":5000";
         }
 
@@ -199,13 +225,16 @@ public class MenuScreen implements Screen {
         statusLabel.setColor(NeonSkin.CYAN);
 
         String diff = diffSelect.getSelected();
+        boolean enableGhosts = ghostsCheck.isChecked();
 
         if (raceCheck.isChecked()) {
-            BotAgent.BotStrategy strategy =
-                BotAgent.BotStrategy.valueOf(botStrategySelect.getSelected());
-            game.setScreen(new RaceScreen(game, algo, height, width, baseUrl, diff, strategy));
+            BotAgent.BotStrategy strategy = BotAgent.BotStrategy.valueOf(botStrategySelect.getSelected());
+            game.setScreen(new RaceScreen(game, algo, height, width, baseUrl, diff, strategy, !enableGhosts));
+        } else if (aiAutoplayCheck.isChecked()) {
+            BotAgent.BotStrategy pacmanStrat = BotAgent.BotStrategy.valueOf(pacmanStrategySelect.getSelected());
+            game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff, !enableGhosts, true, pacmanStrat));
         } else {
-            game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff));
+            game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff, !enableGhosts));
         }
     }
 
@@ -219,57 +248,13 @@ public class MenuScreen implements Screen {
         } else {
             baseUrl = "http://" + server + ":5000";
         }
-
-        statusLabel.setText("Fetching latest replay...");
-        statusLabel.setColor(NeonSkin.CYAN);
-
-        // Fetch replay list, pick first, then load full replay
-        ApiClient api = new ApiClient(baseUrl);
-        api.listReplays(null, 1, new ApiClient.ReplayListCallback() {
-            @Override
-            public void onSuccess(String listJson) {
-                try {
-                    com.badlogic.gdx.utils.JsonValue arr = new com.badlogic.gdx.utils.JsonReader().parse(listJson);
-                    if (arr == null || arr.size == 0) {
-                        statusLabel.setText("No replays found");
-                        statusLabel.setColor(NeonSkin.ERROR_RED);
-                        return;
-                    }
-                    String replayId = arr.get(0).getString("_id");
-                    // Load full replay
-                    api.loadReplay(replayId, new ApiClient.ReplayLoadCallback() {
-                        @Override
-                        public void onSuccess(String replayJson) {
-                            game.setScreen(new ReplayScreen(game, replayJson, baseUrl));
-                        }
-                        @Override
-                        public void onError(String msg) {
-                            statusLabel.setText("Load error: " + msg);
-                            statusLabel.setColor(NeonSkin.ERROR_RED);
-                        }
-                    });
-                } catch (Exception e) {
-                    statusLabel.setText("Parse error: " + e.getMessage());
-                    statusLabel.setColor(NeonSkin.ERROR_RED);
-                }
-            }
-            @Override
-            public void onError(String msg) {
-                statusLabel.setText("Replay list error: " + msg);
-                statusLabel.setColor(NeonSkin.ERROR_RED);
-            }
-        });
+        game.setScreen(new ReplayListScreen(game, baseUrl));
     }
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(
-                MazeRenderer.BG_COLOR.r,
-                MazeRenderer.BG_COLOR.g,
-                MazeRenderer.BG_COLOR.b,
-                1f);
+        Gdx.gl.glClearColor(MazeRenderer.BG_COLOR.r, MazeRenderer.BG_COLOR.g, MazeRenderer.BG_COLOR.b, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
         stage.act(delta);
         stage.draw();
     }
