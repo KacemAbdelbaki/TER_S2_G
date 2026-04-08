@@ -186,14 +186,51 @@ public class Player {
         if (visuallyArrived && moveCooldown <= 0 && inputAgent != null) {
             inputAgent.update(delta);
             if (inputAgent.hasPendingMove()) {
-                tryMove(inputAgent.getPendingDR(), inputAgent.getPendingDC());
-                inputAgent.consumeMove();
+                int dr = inputAgent.getPendingDR();
+                int dc = inputAgent.getPendingDC();
+                boolean moved = tryMove(dr, dc);
+                if (moved) {
+                    // Tell HumanAgent what direction succeeded so it becomes
+                    // the "current direction" for continuous movement.
+                    if (inputAgent instanceof com.labyrinth.agents.HumanAgent) {
+                        int succeededDir = dirFromDeltas(dr, dc);
+                        ((com.labyrinth.agents.HumanAgent) inputAgent).confirmDirection(succeededDir);
+                    }
+                    inputAgent.consumeMove();
+                } else {
+                    // The desired direction was blocked.
+                    // For HumanAgent, fall back to current (continuous) direction.
+                    if (inputAgent instanceof com.labyrinth.agents.HumanAgent) {
+                        ((com.labyrinth.agents.HumanAgent) inputAgent).desiredBlocked();
+                        if (inputAgent.hasPendingMove()) {
+                            int dr2 = inputAgent.getPendingDR();
+                            int dc2 = inputAgent.getPendingDC();
+                            boolean moved2 = tryMove(dr2, dc2);
+                            if (moved2) {
+                                int succeededDir = dirFromDeltas(dr2, dc2);
+                                ((com.labyrinth.agents.HumanAgent) inputAgent).confirmDirection(succeededDir);
+                            }
+                            inputAgent.consumeMove();
+                        }
+                    } else {
+                        inputAgent.consumeMove();
+                    }
+                }
             }
         }
     }
 
-    private void tryMove(int dr, int dc) {
-        if (maze == null) return;
+    /** Convert dr/dc deltas to a direction constant. */
+    private int dirFromDeltas(int dr, int dc) {
+        if (dc ==  1) return DIR_RIGHT;
+        if (dr == -1) return DIR_UP;
+        if (dc == -1) return DIR_LEFT;
+        if (dr ==  1) return DIR_DOWN;
+        return DIR_RIGHT;
+    }
+
+    private boolean tryMove(int dr, int dc) {
+        if (maze == null) return false;
 
         int wallDir;
         if (dr == -1) wallDir = 0;       // Up
@@ -202,13 +239,13 @@ public class Player {
         else wallDir = 3;                  // Left
 
         MazeCell current = maze.getCell(gridRow, gridCol);
-        if (current == null) return;
-        if (current.hasWall(wallDir)) return;
+        if (current == null) return false;
+        if (current.hasWall(wallDir)) return false;
 
         int newRow = gridRow + dr;
         int newCol = gridCol + dc;
         MazeCell target = maze.getCell(newRow, newCol);
-        if (target == null) return;
+        if (target == null) return false;
 
         // Record successful input for deterministic replay
         if (recorder != null && recorder.isRecording()) {
@@ -269,6 +306,7 @@ public class Player {
         if (dotsEaten >= totalDots) {
             won = true;
         }
+        return true;
     }
 
     public void setTarget(float tx, float ty) {

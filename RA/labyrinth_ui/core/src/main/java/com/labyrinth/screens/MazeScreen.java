@@ -283,13 +283,19 @@ public class MazeScreen implements Screen {
             }
         }
 
-        int centerR = hasGhostRoom ? (gMinR + gMaxR) / 2 : maze.height / 2;
+        int topR    = hasGhostRoom ? gMinR : maze.height / 2;
+        int bottomR = hasGhostRoom ? gMaxR : maze.height / 2;
         int centerC = hasGhostRoom ? (gMinC + gMaxC) / 2 : maze.width / 2;
 
-        blinky = new Blinky(maze, centerR, Math.min(centerC + 1, maze.width - 1));
-        pinky  = new Pinky(maze, centerR, Math.max(centerC - 1, 0));
-        inky   = new Inky(maze, centerR, Math.min(centerC + 2, maze.width - 1), blinky);
-        clyde  = new Clyde(maze, centerR, Math.max(centerC - 2, 0));
+        // Blinky stays just outside the ghost house's entrance
+        int outsideR = Math.max(topR - 1, 0);
+        blinky = new Blinky(maze, outsideR, centerC);
+        // Pinky in the middle (bottom center)
+        pinky  = new Pinky(maze, bottomR, centerC);
+        // Inky on the left (bottom left)
+        inky   = new Inky(maze, bottomR, Math.max(centerC - 1, 0), blinky);
+        // Clyde on the right (bottom right)
+        clyde  = new Clyde(maze, bottomR, Math.min(centerC + 1, maze.width - 1));
         ghosts = new Ghost[]{blinky, pinky, inky, clyde};
 
         float cs = mazeRenderer.getCellSize();

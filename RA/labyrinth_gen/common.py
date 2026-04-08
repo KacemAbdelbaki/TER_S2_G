@@ -43,18 +43,30 @@ def initMap(height, width):
 
 
 def ghost_room_init(grid):
-    """Set up the two-cell ghost room in the middle-right of *grid*."""
+    """Set up the ghost room in the middle-right of *grid*.
+    Since the grid is half the final width, configuring cols W-2 and W-1
+    on a single row will create a 1x3 room when mirrored:
+    Left (W-2), Door (W-1), and Right (Mirrored W-2).
+    """
     H = len(grid)
     W = len(grid[0]) if H else 0
     middleY = H // 2
-    # Left ghost cell
+    if H < 2 or W < 2:
+        return grid
+        
+    # Left ghost cell (becomes Left boundary)
     grid[middleY][W - 2].visited = True
     grid[middleY][W - 2].walls = [True, False, True, True]
     grid[middleY][W - 2].isGhost = True
-    # Right ghost cell
+    
+    # Right ghost cell (becomes the Center door cell)
     grid[middleY][W - 1].visited = True
     grid[middleY][W - 1].walls = [False, False, True, False]
     grid[middleY][W - 1].isGhost = True
+    
+    # Ensure symmetry for the door (the cell above must have its down wall open)
+    grid[middleY - 1][W - 1].walls[2] = False
+    
     return grid
 
 
@@ -97,14 +109,16 @@ def add_cycles(grid, p=0.08):
         for c in range(W):
             if c + 1 < W:
                 cell, nei = grid[r][c], grid[r][c + 1]
-                if cell.walls[1] and nei.walls[3] and random.random() < p:
-                    cell.walls[1] = False
-                    nei.walls[3] = False
+                if not (cell.isGhost or nei.isGhost):
+                    if cell.walls[1] and nei.walls[3] and random.random() < p:
+                        cell.walls[1] = False
+                        nei.walls[3] = False
             if r + 1 < H:
                 cell, nei = grid[r][c], grid[r + 1][c]
-                if cell.walls[2] and nei.walls[0] and random.random() < p:
-                    cell.walls[2] = False
-                    nei.walls[0] = False
+                if not (cell.isGhost or nei.isGhost):
+                    if cell.walls[2] and nei.walls[0] and random.random() < p:
+                        cell.walls[2] = False
+                        nei.walls[0] = False
 
 
 def seal_borders(grid):
@@ -167,8 +181,13 @@ def insert_middle_column(mapS, mapD):
     for y in range(len(mapD)):
         new_cell = copy.deepcopy(mapS[y][source_x])
         mapD[y].insert(insert_x, new_cell)
-        mapD[y][insert_x].walls[1] = mapD[y][insert_x].walls[3]
-        mapD[y][insert_x + 1].walls[3] = mapD[y][insert_x].walls[1]
+        
+        # Sync the left neighboring cell (undoing the clear from mirror_map)
+        mapD[y][insert_x - 1].walls[1] = new_cell.walls[3]
+        
+        # Make the inserted cell symmetric and sync the right neighboring cell
+        new_cell.walls[1] = new_cell.walls[3]
+        mapD[y][insert_x + 1].walls[3] = new_cell.walls[1]
 
     # Re-index every cell
     for r in range(len(mapD)):

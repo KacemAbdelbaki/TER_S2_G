@@ -60,22 +60,26 @@ def kruskal_algorithm(grid, steps=None):
     W = len(grid[0])
     ds = DisjointSet(H * W)
 
-    # List every internal wall as an edge
+    # List every internal wall as an edge, excluding walls of the ghost room
     walls = []
     for r in range(H):
         for c in range(W):
             if c + 1 < W:
-                walls.append(((r, c), (r, c + 1), 1, 3))
+                # Only add the wall if it doesn't involve a ghost cell
+                if not (grid[r][c].isGhost or grid[r][c + 1].isGhost):
+                    walls.append(((r, c), (r, c + 1), 1, 3))
             if r + 1 < H:
-                walls.append(((r, c), (r + 1, c), 2, 0))
+                # Only add the wall if it doesn't involve a ghost cell
+                if not (grid[r][c].isGhost or grid[r + 1][c].isGhost):
+                    walls.append(((r, c), (r + 1, c), 2, 0))
 
-    # Pre-union ghost-room cells
+    # Pre-union ghost-room cells among themselves since they are already connected
     for r in range(H):
         for c in range(W):
-            if grid[r][c].visited:
+            if grid[r][c].isGhost:
                 for dr, dc in [(0, 1), (1, 0)]:
                     nr, nc = r + dr, c + dc
-                    if 0 <= nr < H and 0 <= nc < W and grid[nr][nc].visited:
+                    if 0 <= nr < H and 0 <= nc < W and grid[nr][nc].isGhost:
                         ds.union(r * W + c, nr * W + nc)
 
     random.shuffle(walls)
