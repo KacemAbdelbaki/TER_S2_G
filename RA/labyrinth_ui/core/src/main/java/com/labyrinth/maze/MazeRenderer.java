@@ -14,24 +14,24 @@ import com.labyrinth.agents.Ghost;
 public class MazeRenderer {
 
     // ----- Pac-Man Theme colours -----
-    public static final Color BG_COLOR        = new Color(0.0f, 0.0f, 0.0f, 1f);      // Pure black
-    public static final Color WALL_COLOR      = new Color(0.13f, 0.13f, 1.0f, 1f);     // Classic blue
-    public static final Color WALL_GLOW       = new Color(0.13f, 0.13f, 1.0f, 0.18f);
-    public static final Color GHOST_ROOM_COLOR= new Color(1.0f, 0.5f, 0.5f, 0.12f);    // Faint red
-    public static final Color GHOST_DOOR_COLOR= new Color(1.0f, 0.7f, 0.8f, 0.9f);     // Pink door
-    public static final Color TP_COLOR        = new Color(1.0f, 0.0f, 1.0f, 0.50f);
-    public static final Color TP_LINK_COLOR   = new Color(1.0f, 0.0f, 1.0f, 0.15f);
-    public static final Color DOT_COLOR       = new Color(1.0f, 0.85f, 0.55f, 0.9f);   // Warm yellow dots
-    public static final Color POWER_COLOR     = new Color(1.0f, 0.85f, 0.55f, 1.0f);   // Bright pellets
-    public static final Color VISITED_COLOR   = new Color(0.05f, 0.05f, 0.12f, 1.0f);  // Slightly lighter than BG
+    public static final Color BG_COLOR = new Color(0.0f, 0.0f, 0.0f, 1f); // Pure black
+    public static final Color WALL_COLOR = new Color(0.13f, 0.13f, 1.0f, 1f); // Classic blue
+    public static final Color WALL_GLOW = new Color(0.13f, 0.13f, 1.0f, 0.18f);
+    public static final Color GHOST_ROOM_COLOR = new Color(1.0f, 0.5f, 0.5f, 0.12f); // Faint red
+    public static final Color GHOST_DOOR_COLOR = new Color(1.0f, 0.7f, 0.8f, 0.9f); // Pink door
+    public static final Color TP_COLOR = new Color(1.0f, 0.0f, 1.0f, 0.50f);
+    public static final Color TP_LINK_COLOR = new Color(1.0f, 0.0f, 1.0f, 0.15f);
+    public static final Color DOT_COLOR = new Color(1.0f, 0.85f, 0.55f, 0.9f); // Warm yellow dots
+    public static final Color POWER_COLOR = new Color(1.0f, 0.85f, 0.55f, 1.0f); // Bright pellets
+    public static final Color VISITED_COLOR = new Color(0.05f, 0.05f, 0.12f, 1.0f); // Slightly lighter than BG
     public static final Color UNVISITED_COLOR = new Color(0.0f, 0.0f, 0.0f, 1.0f);
 
     // Ghost colours
-    public static final Color GHOST_RED    = new Color(1.0f, 0.0f, 0.0f, 0.85f);
-    public static final Color GHOST_PINK   = new Color(1.0f, 0.72f, 0.84f, 0.85f);
-    public static final Color GHOST_CYAN   = new Color(0.0f, 1.0f, 1.0f, 0.85f);
+    public static final Color GHOST_RED = new Color(1.0f, 0.0f, 0.0f, 0.85f);
+    public static final Color GHOST_PINK = new Color(1.0f, 0.72f, 0.84f, 0.85f);
+    public static final Color GHOST_CYAN = new Color(0.0f, 1.0f, 1.0f, 0.85f);
     public static final Color GHOST_ORANGE = new Color(1.0f, 0.60f, 0.0f, 0.85f);
-    private static final Color[] GHOST_COLORS = {GHOST_RED, GHOST_PINK, GHOST_CYAN, GHOST_ORANGE};
+    private static final Color[] GHOST_COLORS = { GHOST_RED, GHOST_PINK, GHOST_CYAN, GHOST_ORANGE };
 
     private ShapeRenderer sr;
     private float cellSize;
@@ -56,18 +56,18 @@ public class MazeRenderer {
     /**
      * Render the maze with Pac-Man elements.
      *
-     * @param maze           the maze data
-     * @param camera         current camera
-     * @param animProgress   steps revealed (-1 = show all)
-     * @param playerGridRow  Pac-Man row (-1 if inactive)
-     * @param playerGridCol  Pac-Man col (-1 if inactive)
-     * @param visitedCells   player trail (may be null)
-     * @param dots           dot grid (may be null)
-     * @param powerPellets   power pellet grid (may be null)
+     * @param maze          the maze data
+     * @param camera        current camera
+     * @param animProgress  steps revealed (-1 = show all)
+     * @param playerGridRow Pac-Man row (-1 if inactive)
+     * @param playerGridCol Pac-Man col (-1 if inactive)
+     * @param visitedCells  player trail (may be null)
+     * @param dots          dot grid (may be null)
+     * @param powerPellets  power pellet grid (may be null)
      */
     public void render(MazeData maze, OrthographicCamera camera,
-                       int animProgress, int playerGridRow, int playerGridCol,
-                       boolean[][] visitedCells, boolean[][] dots, boolean[][] powerPellets) {
+            int animProgress, int playerGridRow, int playerGridCol,
+            boolean[][] visitedCells, boolean[][] dots, boolean[][] powerPellets) {
 
         sr.setProjectionMatrix(camera.combined);
 
@@ -79,7 +79,8 @@ public class MazeRenderer {
         for (int r = 0; r < maze.height; r++) {
             for (int c = 0; c < maze.width; c++) {
                 MazeCell cell = maze.grid[r][c];
-                if (cell == null) continue;
+                if (cell == null)
+                    continue;
 
                 float x = originX + c * cellSize;
                 float y = originY + (maze.height - 1 - r) * cellSize;
@@ -216,7 +217,8 @@ public class MazeRenderer {
                 }
             }
         }
-        if (ghostCount == 0) return;
+        if (ghostCount == 0)
+            return;
 
         // Place up to 4 ghosts spread across the ghost room
         float ghostSize = cellSize * 0.35f;
@@ -302,15 +304,20 @@ public class MazeRenderer {
         for (int r = 0; r < H; r++) {
             for (int c = 0; c < W; c++) {
                 MazeCell cell = grid[r][c];
-                if (cell == null) continue;
+                if (cell == null)
+                    continue;
 
                 float x = originX + c * cellSize;
                 float y = originY + (H - 1 - r) * cellSize;
 
-                if (cell.walls[0]) sr.line(x, y + cellSize, x + cellSize, y + cellSize);
-                if (cell.walls[1]) sr.line(x + cellSize, y, x + cellSize, y + cellSize);
-                if (cell.walls[2]) sr.line(x, y, x + cellSize, y);
-                if (cell.walls[3]) sr.line(x, y, x, y + cellSize);
+                if (cell.walls[0])
+                    sr.line(x, y + cellSize, x + cellSize, y + cellSize);
+                if (cell.walls[1])
+                    sr.line(x + cellSize, y, x + cellSize, y + cellSize);
+                if (cell.walls[2])
+                    sr.line(x, y, x + cellSize, y);
+                if (cell.walls[3])
+                    sr.line(x, y, x, y + cellSize);
             }
         }
     }
@@ -326,7 +333,7 @@ public class MazeRenderer {
                 copy.isTP = orig.isTP;
                 copy.tpX = orig.tpX;
                 copy.tpY = orig.tpY;
-                copy.walls = new boolean[]{true, true, true, true};
+                copy.walls = new boolean[] { true, true, true, true };
                 if (orig.isGhost) {
                     copy.walls = orig.walls.clone();
                 }
@@ -344,9 +351,17 @@ public class MazeRenderer {
         return aGrid;
     }
 
-    public float getCellSize() { return cellSize; }
-    public float getOriginX() { return originX; }
-    public float getOriginY() { return originY; }
+    public float getCellSize() {
+        return cellSize;
+    }
+
+    public float getOriginX() {
+        return originX;
+    }
+
+    public float getOriginY() {
+        return originY;
+    }
 
     public float gridToScreenY(int row, int mazeHeight) {
         return originY + (mazeHeight - 1 - row) * cellSize;
@@ -361,7 +376,8 @@ public class MazeRenderer {
      * Uses FRIGHTENED blue colour or EATEN eyes-only.
      */
     public void renderActiveGhosts(Ghost[] ghosts, OrthographicCamera camera) {
-        if (ghosts == null) return;
+        if (ghosts == null)
+            return;
         sr.setProjectionMatrix(camera.combined);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -399,7 +415,8 @@ public class MazeRenderer {
      * (e.g. half-width renderer) than the camera being drawn with.
      */
     public void renderActiveGhostsAtGrid(Ghost[] ghosts, OrthographicCamera camera, int mazeHeight) {
-        if (ghosts == null) return;
+        if (ghosts == null)
+            return;
         sr.setProjectionMatrix(camera.combined);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -410,7 +427,8 @@ public class MazeRenderer {
         sr.begin(ShapeRenderer.ShapeType.Filled);
         for (int i = 0; i < ghosts.length; i++) {
             Ghost g = ghosts[i];
-            if (g.getMode() == Ghost.GhostMode.EATEN) continue;
+            if (g.getMode() == Ghost.GhostMode.EATEN)
+                continue;
             float gx = gridToScreenX(g.getGridCol()) + cellSize / 2f;
             float gy = gridToScreenY(g.getGridRow(), mazeHeight) + cellSize / 2f;
             if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
@@ -432,73 +450,82 @@ public class MazeRenderer {
     }
 
     /**
-     * Renders a predicted path showing the exact tiles each ghost is planning to move to next.
-     * This uses the same greedy pathfinding logic that ghosts use to decide their movements.
+     * Renders a predicted path showing the exact tiles each ghost is planning to
+     * move to next.
+     * This uses the same greedy pathfinding logic that ghosts use to decide their
+     * movements.
      */
-    public void renderGhostPaths(Ghost[] ghosts, com.labyrinth.player.Player player, MazeData maze, OrthographicCamera camera) {
-        if (ghosts == null || player == null || maze == null) return;
-        
+    public void renderGhostPaths(Ghost[] ghosts, com.labyrinth.player.Player player, MazeData maze,
+            OrthographicCamera camera) {
+        if (ghosts == null || player == null || maze == null)
+            return;
+
         sr.setProjectionMatrix(camera.combined);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        
+
         sr.begin(ShapeRenderer.ShapeType.Line);
         Gdx.gl.glLineWidth(3f);
-        
-        int[] DR = {0, -1, 0, 1};
-        int[] DC = {1, 0, -1, 0};
-        int[] DIR_TO_WALL = {1, 0, 3, 2};
-        int[] priority = {1, 2, 3, 0}; // Up, Left, Down, Right 
+
+        int[] DR = { 0, -1, 0, 1 };
+        int[] DC = { 1, 0, -1, 0 };
+        int[] DIR_TO_WALL = { 1, 0, 3, 2 };
+        int[] priority = { 1, 2, 3, 0 }; // Up, Left, Down, Right
 
         for (int i = 0; i < ghosts.length; i++) {
             Ghost g = ghosts[i];
             if (g.getMode() == Ghost.GhostMode.EATEN || g.getMode() == Ghost.GhostMode.FRIGHTENED) {
                 continue; // Do not predict paths for eaten or frightened ghosts
             }
-            if (g.isInGhostRoom()) continue; // Ghost is floating out, predicting path is tricky here
-            
+            if (g.isInGhostRoom())
+                continue; // Ghost is floating out, predicting path is tricky here
+
             Color color = GHOST_COLORS[i % GHOST_COLORS.length].cpy();
             color.a = 0.35f; // Semi-transparent
             sr.setColor(color);
-            
+
             int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
-            
+
             // Simulate path for up to 12 steps
             int curRow = g.getGridRow();
             int curCol = g.getGridCol();
             int curDir = g.getDirection();
-            
+
             float lastX = gridToScreenX(curCol) + cellSize / 2f;
             float lastY = gridToScreenY(curRow, maze.height) + cellSize / 2f;
-            
+
             for (int step = 0; step < 12; step++) {
                 if (curRow == target[0] && curCol == target[1]) {
                     sr.circle(lastX, lastY, cellSize * 0.25f);
                     break;
                 }
-                
+
                 int reverseDir = (curDir + 2) % 4;
                 int bestDir = -1;
                 float bestDist = Float.MAX_VALUE;
-                
+
                 MazeCell current = maze.getCell(curRow, curCol);
-                if (current == null) break;
-                
+                if (current == null)
+                    break;
+
                 for (int d : priority) {
-                    if (d == reverseDir) continue; 
-                    if (current.hasWall(DIR_TO_WALL[d])) continue;
-                    
+                    if (d == reverseDir)
+                        continue;
+                    if (current.hasWall(DIR_TO_WALL[d]))
+                        continue;
+
                     int newR = curRow + DR[d];
                     int newC = curCol + DC[d];
                     float dist = (newR - target[0]) * (newR - target[0]) + (newC - target[1]) * (newC - target[1]);
-                    
+
                     if (dist < bestDist) {
                         bestDist = dist;
                         bestDir = d;
                     }
                 }
-                
-                // Allow reverse only if stuck (though classic ghosts don't do this, it's a safety)
+
+                // Allow reverse only if stuck (though classic ghosts don't do this, it's a
+                // safety)
                 if (bestDir == -1) {
                     if (!current.hasWall(DIR_TO_WALL[reverseDir])) {
                         bestDir = reverseDir;
@@ -506,20 +533,21 @@ public class MazeRenderer {
                         break; // Dead end
                     }
                 }
-                
+
                 curDir = bestDir;
                 curRow += DR[bestDir];
                 curCol += DC[bestDir];
-                
+
                 float nextX = gridToScreenX(curCol) + cellSize / 2f;
                 float nextY = gridToScreenY(curRow, maze.height) + cellSize / 2f;
-                
+
                 sr.line(lastX, lastY, nextX, nextY);
                 lastX = nextX;
                 lastY = nextY;
             }
-            
-            // Draw a cross indicating their true target tile, even if they haven't reached it in 12 steps
+
+            // Draw a cross indicating their true target tile, even if they haven't reached
+            // it in 12 steps
             float targetX = gridToScreenX(target[1]) + cellSize / 2f;
             float targetY = gridToScreenY(target[0], maze.height) + cellSize / 2f;
             color.a = 0.15f;
@@ -528,10 +556,11 @@ public class MazeRenderer {
             sr.line(targetX - crossR, targetY - crossR, targetX + crossR, targetY + crossR);
             sr.line(targetX - crossR, targetY + crossR, targetX + crossR, targetY - crossR);
         }
-        
+
         sr.end();
         Gdx.gl.glLineWidth(1f);
     }
+
     public void dispose() {
         sr.dispose();
     }

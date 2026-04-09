@@ -9,7 +9,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -40,6 +39,7 @@ public class RaceScreen implements Screen {
     private final String baseUrl;
     private final Ghost.Difficulty difficulty;
     private final BotAgent.BotStrategy botStrategy;
+    private final boolean skipGhosts;
 
     // Display mode
     private boolean overlayMode = false;
@@ -47,7 +47,6 @@ public class RaceScreen implements Screen {
     // Shared
     private MazeData maze;
     private boolean loading = true;
-    private String errorMessage;
     private ApiClient apiClient;
 
     // Rendering
@@ -88,13 +87,13 @@ public class RaceScreen implements Screen {
     private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
     private static final float FRIGHTENED_DURATION = 6f;
 
-    // Race result
     private boolean raceFinished = false;
     private String resultMessage = "";
+    private boolean replaySaved = false;
 
     public RaceScreen(Main game, String algorithm, int height, int width,
                       String baseUrl, String diffString,
-                      BotAgent.BotStrategy botStrategy) {
+                      BotAgent.BotStrategy botStrategy, boolean skipGhosts) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
@@ -102,6 +101,7 @@ public class RaceScreen implements Screen {
         this.baseUrl = baseUrl;
         this.difficulty = Ghost.Difficulty.valueOf(diffString);
         this.botStrategy = botStrategy;
+        this.skipGhosts = skipGhosts;
     }
 
     @Override
@@ -201,7 +201,6 @@ public class RaceScreen implements Screen {
             }
             @Override public void onError(String message) {
                 loading = false;
-                errorMessage = message;
                 statusLbl.setText("Error: " + message);
                 statusLbl.setColor(NeonSkin.ERROR_RED);
             }
@@ -235,7 +234,9 @@ public class RaceScreen implements Screen {
         humanPrevRow = start[0]; humanPrevCol = start[1];
         humanRecorder = new GameRecorder(maze.id, algorithm, maze.width, maze.height);
         humanPlayer.setRecorder(humanRecorder);
-        humanGhosts = spawnGhosts(rendererLeft);
+        if (!skipGhosts) {
+            humanGhosts = spawnGhosts(rendererLeft);
+        }
         humanModeTimer = 0; humanModePhase = 0;
         humanFrightened = false; humanGameOver = false;
 
@@ -251,7 +252,9 @@ public class RaceScreen implements Screen {
         botPrevRow = start[0]; botPrevCol = start[1];
         botRecorder = new GameRecorder(maze.id, algorithm, maze.width, maze.height);
         botPlayer.setRecorder(botRecorder);
-        botGhosts = spawnGhosts(rendererRight);
+        if (!skipGhosts) {
+            botGhosts = spawnGhosts(rendererRight);
+        }
         botModeTimer = 0; botModePhase = 0;
         botFrightened = false; botGameOver = false;
 
@@ -374,8 +377,10 @@ public class RaceScreen implements Screen {
             if (isHuman) { humanFrightened = true; humanFrightTimer = FRIGHTENED_DURATION; }
             else { botFrightened = true; botFrightTimer = FRIGHTENED_DURATION; }
             player.resetGhostCombo();
-            for (Ghost g : ghosts)
-                if (g.getMode() != Ghost.GhostMode.EATEN) g.setMode(Ghost.GhostMode.FRIGHTENED);
+            if (!skipGhosts && ghosts != null) {
+                for (Ghost g : ghosts)
+                    if (g.getMode() != Ghost.GhostMode.EATEN) g.setMode(Ghost.GhostMode.FRIGHTENED);
+            }
         }
 
         // Grid move visual update
@@ -401,11 +406,13 @@ public class RaceScreen implements Screen {
             }
             if (isHuman) { humanModeTimer = modeTimer; humanModePhase = modePhase; }
             else { botModeTimer = modeTimer; botModePhase = modePhase; }
-
-            boolean scatter = (modePhase % 2 == 0);
-            for (Ghost g : ghosts)
-                if (g.getMode() != Ghost.GhostMode.EATEN)
-                    g.setMode(scatter ? Ghost.GhostMode.SCATTER : Ghost.GhostMode.CHASE);
+            
+            if (!skipGhosts && ghosts != null) {
+                boolean scatter = (modePhase % 2 == 0);
+                for (Ghost g : ghosts)
+                    if (g.getMode() != Ghost.GhostMode.EATEN)
+                        g.setMode(scatter ? Ghost.GhostMode.SCATTER : Ghost.GhostMode.CHASE);
+            }
         } else {
             float ft = isHuman ? humanFrightTimer : botFrightTimer;
             ft -= delta;
@@ -415,49 +422,53 @@ public class RaceScreen implements Screen {
             }
             if (isHuman) humanFrightTimer = ft; else botFrightTimer = ft;
         }
-
         // Move and collide ghosts
-        float cs = renderer.getCellSize();
-        for (Ghost g : ghosts) {
-            g.update(delta);
-            if (g.isReadyToMove()) {
-                if (g.isInGhostRoom()) {
-                    g.exitGhostRoom();
-                } else if (g.getMode() == Ghost.GhostMode.EATEN) {
-                    g.moveTowardGhostRoom();
-                } else {
-                    int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
-                    int dir = g.chooseDirection(target[0], target[1]);
-                    g.moveInDirection(dir);
+        if (!skipGhosts && ghosts != null) {
+            float cs = renderer.getCellSize();
+            for (Ghost g : ghosts) {
+                g.update(delta);
+                if (g.isReadyToMove()) {
+                    if (g.isInGhostRoom()) {
+                        g.exitGhostRoom();
+                    } else if (g.getMode() == Ghost.GhostMode.EATEN) {
+                        g.moveTowardGhostRoom();
+                    } else {
+                        int[] target = g.getTargetTile(player.gridRow, player.gridCol, player.direction);
+                        int dir = g.chooseDirection(target[0], target[1]);
+                        g.moveInDirection(dir);
+                    }
+                    g.resetMoveTimer();
+                    float gx = renderer.gridToScreenX(g.getGridCol()) + cs / 2f;
+                    float gy = renderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
+                    g.setVisualTarget(gx, gy);
                 }
-                g.resetMoveTimer();
-                float gx = renderer.gridToScreenX(g.getGridCol()) + cs / 2f;
-                float gy = renderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
-                g.setVisualTarget(gx, gy);
             }
         }
 
         // Collision
-        for (Ghost g : ghosts) {
-            if (g.getGridRow() == player.gridRow && g.getGridCol() == player.gridCol) {
-                if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
-                    player.eatGhost();
-                    g.setMode(Ghost.GhostMode.EATEN);
-                } else if (g.getMode() != Ghost.GhostMode.EATEN) {
-                    if (player.loseLife()) {
-                        if (isHuman) humanGameOver = true; else botGameOver = true;
-                        player.gameOver = true;
-                    } else {
-                        int[] start = findPacManStart();
-                        player.gridRow = start[0]; player.gridCol = start[1];
-                        float px = renderer.gridToScreenX(start[1]) + cs / 2f;
-                        float py = renderer.gridToScreenY(start[0], maze.height) + cs / 2f;
-                        player.setVisualPosition(px, py);
-                        // Respawn this lane's ghosts
-                        Ghost[] newGhosts = spawnGhosts(renderer);
-                        System.arraycopy(newGhosts, 0, ghosts, 0, ghosts.length);
+        if (!skipGhosts && ghosts != null) {
+            for (Ghost g : ghosts) {
+                if (g.getGridRow() == player.gridRow && g.getGridCol() == player.gridCol) {
+                    if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
+                        player.eatGhost();
+                        g.setMode(Ghost.GhostMode.EATEN);
+                    } else if (g.getMode() != Ghost.GhostMode.EATEN) {
+                        if (player.loseLife()) {
+                            if (isHuman) humanGameOver = true; else botGameOver = true;
+                            player.gameOver = true;
+                        } else {
+                            int[] start = findPacManStart();
+                            player.gridRow = start[0]; player.gridCol = start[1];
+                            float cs = renderer.getCellSize();
+                            float px = renderer.gridToScreenX(start[1]) + cs / 2f;
+                            float py = renderer.gridToScreenY(start[0], maze.height) + cs / 2f;
+                            player.setVisualPosition(px, py);
+                            // Respawn this lane's ghosts
+                            Ghost[] newGhosts = spawnGhosts(renderer);
+                            System.arraycopy(newGhosts, 0, ghosts, 0, ghosts.length);
+                            break;
+                        }
                     }
-                    break;
                 }
             }
         }
@@ -475,13 +486,19 @@ public class RaceScreen implements Screen {
 
     private void recordFrame(GameRecorder rec, Player p, Ghost[] ghosts) {
         int[] gR = new int[4], gC = new int[4], gM = new int[4];
-        for (int i = 0; i < ghosts.length; i++) {
-            gR[i] = ghosts[i].getGridRow();
-            gC[i] = ghosts[i].getGridCol();
-            gM[i] = ghosts[i].getMode().ordinal();
+        float[] gVX = new float[4], gVY = new float[4];
+        if (!skipGhosts && ghosts != null) {
+            for (int i = 0; i < ghosts.length; i++) {
+                gR[i] = ghosts[i].getGridRow();
+                gC[i] = ghosts[i].getGridCol();
+                gM[i] = ghosts[i].getMode().ordinal();
+                gVX[i] = ghosts[i].getVisualX();
+                gVY[i] = ghosts[i].getVisualY();
+            }
         }
         rec.recordFrame(p.getElapsedTime(), p.gridRow, p.gridCol, p.direction,
-            p.visualX, p.visualY, p.score, p.dotsEaten, p.lives, p.isWon(), gR, gC, gM);
+            p.visualX, p.visualY, p.score, p.dotsEaten, p.lives, p.isWon(),
+            gR, gC, gM, gVX, gVY);
     }
 
     private void checkRaceResult() {
@@ -513,6 +530,47 @@ public class RaceScreen implements Screen {
             }
             statusLbl.setText(resultMessage);
         }
+
+        if (raceFinished && !replaySaved) {
+            saveReplayToCloud(humanRecorder, humanPlayer, true);
+        }
+    }
+
+    /** Upload finished replay to the cloud (fire-and-forget). */
+    private void saveReplayToCloud(GameRecorder recorderToSave, Player playerToSave, boolean isHuman) {
+        if (replaySaved || recorderToSave == null || apiClient == null) {
+            return;
+        }
+
+        if (maze == null || maze.id == null) {
+            Gdx.app.log("RaceScreen", "Cannot save replay: missing maze ID.");
+            return;
+        }
+
+        // Finalize recorder metadata
+        recorderToSave.setFinalScore(playerToSave.score);
+        recorderToSave.setFinalDotsEaten(playerToSave.dotsEaten);
+        recorderToSave.setWon(playerToSave.isWon());
+        recorderToSave.setDurationSeconds(playerToSave.getElapsedTime());
+        recorderToSave.setPlayerType(isHuman ? "human" : "bot");
+        if (!isHuman && botStrategy != null) {
+            recorderToSave.setBotStrategy(botStrategy.name());
+        }
+        recorderToSave.setMazeId(maze.id);
+
+        String replayJson = recorderToSave.toJson();
+        replaySaved = true;
+
+        apiClient.saveReplay(replayJson, new ApiClient.ReplaySaveCallback() {
+            @Override
+            public void onSuccess(String replayId) {
+                Gdx.app.log("RaceScreen", "Replay saved: " + replayId);
+            }
+            @Override
+            public void onError(String message) {
+                Gdx.app.log("RaceScreen", "Replay save failed: " + message);
+            }
+        });
     }
 
     // ------------------------------------------------------------------

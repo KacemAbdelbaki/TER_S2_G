@@ -3,9 +3,11 @@ package com.labyrinth.agents;
 import com.labyrinth.maze.MazeCell;
 import com.labyrinth.maze.MazeData;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Set;
 
 /**
  * AI-controlled agent that navigates the maze automatically.
@@ -33,6 +35,12 @@ public class BotAgent implements Agent {
     private int pendingDR, pendingDC;
     private boolean hasPendingMove;
 
+    // Teleport loop prevention: the TP destination we just arrived at
+    // The bot should not path *back* through this portal for a few ticks.
+    private int tpCooldownRow = -1, tpCooldownCol = -1;
+    private int tpCooldownTicks = 0;
+    private static final int TP_COOLDOWN = 5; // ignore the exit-portal for N moves
+
     // Agent interface fields (not used for navigation but required by interface)
     private int gridRow, gridCol;
     private float visualX, visualY;
@@ -49,6 +57,19 @@ public class BotAgent implements Agent {
         this.ghosts = ghosts;
         this.playerRow = playerRow;
         this.playerCol = playerCol;
+
+        // Detect if the player just teleported (position changed by more than
+        // one cell in a single frame) and set cooldown on the arrival TP cell
+        // so pathfinding won't immediately route back through it.
+        MazeCell cell = maze.getCell(playerRow, playerCol);
+        if (cell != null && cell.isTP && cell.tpX >= 0 && cell.tpY >= 0) {
+            // We are standing ON a TP exit — mark it for cooldown
+            tpCooldownRow = playerRow;
+            tpCooldownCol = playerCol;
+            tpCooldownTicks = TP_COOLDOWN;
+        }
+
+        if (tpCooldownTicks > 0) tpCooldownTicks--;
     }
 
     public void setStrategy(BotStrategy strategy) { this.strategy = strategy; }
@@ -91,21 +112,26 @@ public class BotAgent implements Agent {
             int nr = playerRow + DIRS[d][0];
             int nc = playerCol + DIRS[d][1];
             if (canMove(playerRow, playerCol, d) && nr >= 0 && nr < h && nc >= 0 && nc < w) {
-                visited[nr][nc] = true;
-                firstStep[nr][nc] = d;
-                if (dots[nr][nc]) return new int[]{DIRS[d][0], DIRS[d][1]};
-                queue.add(new int[]{nr, nc});
+                if (!isTpCooldown(nr, nc)) {
+                    visited[nr][nc] = true;
+                    firstStep[nr][nc] = d;
+                    if (dots[nr][nc]) return new int[]{DIRS[d][0], DIRS[d][1]};
+                    queue.add(new int[]{nr, nc});
+                }
             }
         }
 
         while (!queue.isEmpty()) {
             int[] cur = queue.poll();
+
+            // Explore 4 directional neighbours
             for (int d = 0; d < 4; d++) {
                 int nr = cur[0] + DIRS[d][0];
                 int nc = cur[1] + DIRS[d][1];
                 if (nr < 0 || nr >= h || nc < 0 || nc >= w) continue;
                 if (visited[nr][nc]) continue;
                 if (!canMove(cur[0], cur[1], d)) continue;
+                if (isTpCooldown(nr, nc)) continue;
 
                 visited[nr][nc] = true;
                 firstStep[nr][nc] = firstStep[cur[0]][cur[1]];
@@ -114,6 +140,22 @@ public class BotAgent implements Agent {
                     return new int[]{DIRS[fd][0], DIRS[fd][1]};
                 }
                 queue.add(new int[]{nr, nc});
+            }
+
+            // Follow teleport link from current cell (if any)
+            MazeCell curCell = maze.getCell(cur[0], cur[1]);
+            if (curCell != null && curCell.isTP && curCell.tpX >= 0 && curCell.tpY >= 0) {
+                int tr = curCell.tpX, tc = curCell.tpY;
+                if (tr >= 0 && tr < h && tc >= 0 && tc < w
+                        && !visited[tr][tc] && !isTpCooldown(tr, tc)) {
+                    visited[tr][tc] = true;
+                    firstStep[tr][tc] = firstStep[cur[0]][cur[1]];
+                    if (dots[tr][tc]) {
+                        int fd = firstStep[tr][tc];
+                        return new int[]{DIRS[fd][0], DIRS[fd][1]};
+                    }
+                    queue.add(new int[]{tr, tc});
+                }
             }
         }
         return null; // no reachable dots
@@ -162,12 +204,14 @@ public class BotAgent implements Agent {
                 return new int[]{DIRS[fd][0], DIRS[fd][1]};
             }
 
+            // Explore 4 directional neighbours
             for (int d = 0; d < 4; d++) {
                 int nr = cr + DIRS[d][0];
                 int nc = cc + DIRS[d][1];
                 if (nr < 0 || nr >= h || nc < 0 || nc >= w) continue;
                 if (visited[nr][nc]) continue;
                 if (!canMove(cr, cc, d)) continue;
+                if (isTpCooldown(nr, nc)) continue;
 
                 float edgeCost = 1.0f + danger[nr][nc] * 3.0f;
                 float newCost = cost[cr][cc] + edgeCost;
@@ -175,6 +219,27 @@ public class BotAgent implements Agent {
                     cost[nr][nc] = newCost;
                     firstStep[nr][nc] = (cr == playerRow && cc == playerCol) ? d : firstStep[cr][cc];
                     pq.add(new float[]{newCost, nr, nc});
+                }
+            }
+
+            // Follow teleport link from current cell
+            MazeCell curCell = maze.getCell(cr, cc);
+            if (curCell != null && curCell.isTP && curCell.tpX >= 0 && curCell.tpY >= 0) {
+                int tr = curCell.tpX, tc = curCell.tpY;
+                if (tr >= 0 && tr < h && tc >= 0 && tc < w
+                        && !visited[tr][tc] && !isTpCooldown(tr, tc)) {
+                    float edgeCost = 1.0f + danger[tr][tc] * 3.0f;
+                    float newCost = cost[cr][cc] + edgeCost;
+                    if (newCost < cost[tr][tc]) {
+                        cost[tr][tc] = newCost;
+                        firstStep[tr][tc] = (cr == playerRow && cc == playerCol)
+                                ? firstStep[cr][cc] : firstStep[cr][cc];
+                        // Inherit first step from the cell that entered the portal
+                        if (firstStep[cr][cc] >= 0) {
+                            firstStep[tr][tc] = firstStep[cr][cc];
+                        }
+                        pq.add(new float[]{newCost, tr, tc});
+                    }
                 }
             }
         }
@@ -207,6 +272,16 @@ public class BotAgent implements Agent {
                 vis[nr][nc] = true;
                 q.add(new int[]{nr, nc, dist + 1});
             }
+
+            // Ghost danger also propagates through teleports
+            MazeCell curCell = maze.getCell(cur[0], cur[1]);
+            if (curCell != null && curCell.isTP && curCell.tpX >= 0 && curCell.tpY >= 0) {
+                int tr = curCell.tpX, tc = curCell.tpY;
+                if (tr >= 0 && tr < h && tc >= 0 && tc < w && !vis[tr][tc]) {
+                    vis[tr][tc] = true;
+                    q.add(new int[]{tr, tc, dist + 1});
+                }
+            }
         }
     }
 
@@ -215,6 +290,11 @@ public class BotAgent implements Agent {
         MazeCell cell = maze.getCell(r, c);
         if (cell == null) return false;
         return !cell.hasWall(WALL_IDX[dirIdx]);
+    }
+
+    /** Returns true if (r,c) is the TP exit we just came out of and the cooldown is active. */
+    private boolean isTpCooldown(int r, int c) {
+        return tpCooldownTicks > 0 && r == tpCooldownRow && c == tpCooldownCol;
     }
 
     // ------------------------------------------------------------------

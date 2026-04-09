@@ -130,9 +130,12 @@ def list_mazes(limit=50):
         .limit(limit)
     )
     results = []
-    for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
+    try:
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(doc)
+    except PyMongoError as exc:
+        log.warning("list_mazes failed during iteration: %s", exc)
     return results
 
 
@@ -188,7 +191,10 @@ def list_replays(maze_id=None, limit=50):
         .limit(limit)
     )
     results = []
-    for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
+    try:
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(doc)
+    except PyMongoError as exc:
+        log.warning("list_replays failed during iteration: %s", exc)
     return results

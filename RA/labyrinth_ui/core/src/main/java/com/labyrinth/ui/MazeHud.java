@@ -132,9 +132,7 @@ public class MazeHud {
 
         for (int star = 0; star <= 5; star++) {
             final int rating = star;
-            String label = star == 0 ? "0" : "";
-            for (int s = 0; s < star; s++) label += "\u2605";
-            TextButton starBtn = new TextButton(label.isEmpty() ? "0" : label, skin, "default");
+            TextButton starBtn = new TextButton(String.valueOf(star), skin, "default");
             starBtn.addListener(new ChangeListener() {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
@@ -143,7 +141,7 @@ public class MazeHud {
                     }
                 }
             });
-            ratingTable.add(starBtn).pad(4).minWidth(50);
+            ratingTable.add(starBtn).pad(4).minWidth(50).minHeight(40);
         }
         ratingTable.row();
         ratingResultLabel = new Label("", skin, "small");

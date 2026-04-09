@@ -45,6 +45,10 @@ public abstract class Ghost implements Agent {
     protected int scatterRow;
     protected int scatterCol;
 
+    // Spawn position inside the ghost room
+    protected int spawnRow;
+    protected int spawnCol;
+
     // Movement deltas indexed by direction: Right, Up, Left, Down
     private static final int[] DR = {0, -1, 0, 1};
     private static final int[] DC = {1, 0, -1, 0};
@@ -58,6 +62,8 @@ public abstract class Ghost implements Agent {
         this.maze = maze;
         this.gridRow = startRow;
         this.gridCol = startCol;
+        this.spawnRow = startRow;
+        this.spawnCol = startCol;
         this.scatterRow = scatterRow;
         this.scatterCol = scatterCol;
     }
@@ -225,24 +231,48 @@ public abstract class Ghost implements Agent {
     }
 
     /**
-     * Move ghost upward one row toward the ghost-room exit, ignoring walls.
-     * Used while the ghost is inside the ghost room.
+     * Move ghost toward the ghost-room exit, ignoring walls.
+     * Ghosts must move horizontally to the door column before moving UP.
      */
     public void exitGhostRoom() {
-        int newR = gridRow - 1;
-        if (newR >= 0 && maze.getCell(newR, gridCol) != null) {
-            gridRow = newR;
-            direction = 1; // Up
+        int doorC = -1;
+        // Scan the ghost room to find the cell with no UP wall (the door)
+        for (int r = 0; r < maze.height; r++) {
+            for (int c = 0; c < maze.width; c++) {
+                MazeCell cell = maze.getCell(r, c);
+                if (cell != null && cell.isGhost && !cell.hasWall(0)) {
+                    doorC = c;
+                    break;
+                }
+            }
+            if (doorC != -1) break;
+        }
+
+        if (doorC != -1 && gridCol != doorC) {
+            // Move horizontally closer to the door
+            int dc = Integer.compare(doorC, gridCol);
+            int newC = gridCol + dc;
+            if (newC >= 0 && newC < maze.width && maze.getCell(gridRow, newC) != null) {
+                gridCol = newC;
+                direction = (dc > 0) ? 0 : 2; // Right or Left
+            }
+        } else {
+            // We are under the door (or door not found), move UP
+            int newR = gridRow - 1;
+            if (newR >= 0 && maze.getCell(newR, gridCol) != null) {
+                gridRow = newR;
+                direction = 1; // Up
+            }
         }
     }
 
     /**
-     * Move one step toward the ghost room center, ignoring walls.
-     * Used when the ghost is EATEN and returning to respawn.
+     * Move one step toward the ghost respawn point, ignoring walls.
+     * Used when the ghost is EATEN.
      */
     public void moveTowardGhostRoom() {
-        int targetR = maze.height / 2;
-        int targetC = maze.width / 2;
+        int targetR = spawnRow;
+        int targetC = spawnCol;
 
         int dr = Integer.compare(targetR, gridRow);
         int dc = Integer.compare(targetC, gridCol);
@@ -265,7 +295,7 @@ public abstract class Ghost implements Agent {
             }
         }
 
-        // Arrived at ghost room — switch back to normal mode
+        // Arrived at spawn point — switch back to normal mode
         if (gridRow == targetR && gridCol == targetC) {
             mode = GhostMode.SCATTER;
         }

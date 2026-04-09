@@ -148,27 +148,28 @@ def save_game_replay():
         return jsonify({"error": "JSON body required"}), 400
 
     maze_id = data.get("mazeId") or data.get("maze_id")
-    if not maze_id:
-        return jsonify({"error": "mazeId is required"}), 400
+    if not maze_id or maze_id == "null":
+        return jsonify({"error": "maze_id is required and cannot be empty"}), 400
 
     # Validate maze exists
     maze_doc = get_maze_by_id(maze_id)
     if maze_doc is None:
-        return jsonify({"error": f"Maze '{maze_id}' not found"}), 404
+        print(f"Warning: Replay refers to non-existent maze_id: {maze_id}")
+        return jsonify({"error": f"Maze '{maze_id}' not found in database. Replays must be linked to a valid maze."}), 404
 
     # Build replay document
     replay_doc = {
         "maze_id": maze_id,
         "algorithm": data.get("algorithm", ""),
-        "maze_width": data.get("mazeWidth", 0),
-        "maze_height": data.get("mazeHeight", 0),
-        "player_type": data.get("playerType", "human"),
-        "bot_strategy": data.get("botStrategy"),
-        "final_score": data.get("finalScore", 0),
-        "final_dots_eaten": data.get("finalDotsEaten", 0),
-        "won": data.get("won", False),
-        "duration_seconds": data.get("durationSeconds", 0),
-        "frame_count": data.get("frameCount", 0),
+        "maze_width": data.get("maze_width") or data.get("mazeWidth", 0),
+        "maze_height": data.get("maze_height") or data.get("mazeHeight", 0),
+        "player_type": data.get("player_type") or data.get("playerType", "human"),
+        "bot_strategy": data.get("bot_strategy") or data.get("botStrategy"),
+        "final_score": data.get("final_score") or data.get("finalScore", 0),
+        "final_dots_eaten": data.get("final_dots_eaten") or data.get("finalDotsEaten", 0),
+        "won": data.get("won") if "won" in data else data.get("won", False),
+        "duration_seconds": data.get("duration_seconds") or data.get("durationSeconds", 0),
+        "frame_count": data.get("frame_count") or data.get("frameCount", 0),
         "frames": data.get("frames", []),
         "inputs": data.get("inputs", []),
     }
