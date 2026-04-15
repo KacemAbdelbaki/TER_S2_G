@@ -38,6 +38,10 @@ public class MazeRenderer {
     private float wallThickness = 3f;
     private float originX, originY;
 
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     public MazeRenderer() {
         sr = new ShapeRenderer();
     }
@@ -47,6 +51,11 @@ public class MazeRenderer {
         float availW = viewportW * (1f - 2f * marginFraction);
         float availH = viewportH * (1f - 2f * marginFraction);
         cellSize = Math.min(availW / maze.width, availH / maze.height);
+
+        // Thicker walls (classic Pac-Man feel), while keeping reasonable bounds.
+        // Note: units are in world units which match screen pixels in this project.
+        wallThickness = clamp(cellSize * 0.18f, 4f, 10f);
+
         float mazeW = maze.width * cellSize;
         float mazeH = maze.height * cellSize;
         originX = (viewportW - mazeW) / 2f;

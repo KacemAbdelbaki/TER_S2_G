@@ -14,7 +14,6 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.labyrinth.Main;
-import com.labyrinth.agents.Ghost;
 import com.labyrinth.maze.MazeRenderer;
 import com.labyrinth.net.ApiClient;
 import com.labyrinth.ui.NeonSkin;
@@ -51,13 +50,13 @@ public class ReplayListScreen implements Screen {
                 game.setScreen(new MenuScreen(game));
             }
         });
-        
+
         Label titleLbl = new Label("SAVED REPLAYS", skin, "title");
-        
+
         header.add(backBtn).left().width(100).padRight(20);
         header.add(titleLbl).expandX().center();
         header.add(new Container<>()).width(100); // Balance right side
-        
+
         root.add(header).fillX().padBottom(20).row();
 
         // Status Label
@@ -68,7 +67,7 @@ public class ReplayListScreen implements Screen {
         // Scrollable list container
         listTable = new Table();
         listTable.top();
-        
+
         ScrollPane scrollPane = new ScrollPane(listTable, skin);
         scrollPane.setFadeScrollBars(false);
         scrollPane.setOverscroll(false, false);
@@ -137,7 +136,7 @@ public class ReplayListScreen implements Screen {
             Table row = new Table();
             row.pad(10);
             // Optionally add a background to the row
-            
+
             // Left info
             Table info = new Table();
             info.left();
@@ -145,7 +144,7 @@ public class ReplayListScreen implements Screen {
             Label titleObj = new Label(title, skin, "default");
             titleObj.setColor(NeonSkin.CYAN);
             info.add(titleObj).left().row();
-            
+
             String sub = "Score: " + score + " | Result: " + (won ? "WON" : "LOST") + " | " + date;
             Label subObj = new Label(sub, skin, "small");
             subObj.setColor(won ? NeonSkin.ACCENT : NeonSkin.TEXT_GRAY);
@@ -166,83 +165,11 @@ public class ReplayListScreen implements Screen {
             listTable.add(row).expandX().fillX().padBottom(5).row();
         }
     }
-    
-    private void showGhostSelectionDialog(String replayJson) {
-        // Create dialog UI
-        final Dialog dialog = new Dialog("Ghost Options", skin);
-        dialog.text("This replay was recorded WITHOUT ghosts.\nWould you like to add AI ghosts?");
-        
-        Table content = dialog.getContentTable();
-        
-        // Difficulty selector
-        final SelectBox<String> diffSelect = new SelectBox<>(skin);
-        diffSelect.setItems("CLASSIC", "A_STAR");
-        diffSelect.setSelected("CLASSIC");
-        
-        final Label diffLabel = new Label("Ghost AI:", skin, "default");
-        diffLabel.setVisible(false);
-        diffSelect.setVisible(false);
-        
-        content.add(diffLabel).padTop(10).row();
-        content.add(diffSelect).width(200).padTop(5).row();
-        
-        // Yes button
-        TextButton yesBtn = new TextButton("Yes - Add Ghosts", skin);
-        yesBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                diffLabel.setVisible(true);
-                diffSelect.setVisible(true);
-                dialog.invalidate();
-            }
-        });
-        
-        // No button
-        TextButton noBtn = new TextButton("No - Watch Without Ghosts", skin);
-        noBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                dialog.hide();
-                game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));
-            }
-        });
-        
-        // Start button (visible after clicking Yes)
-        TextButton startBtn = new TextButton("Start Replay", skin, "accent");
-        startBtn.setVisible(false);
-        startBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                dialog.hide();
-                String diff = diffSelect.getSelected();
-                game.setScreen(new ReplayScreen(game, replayJson, baseUrl, true, Ghost.Difficulty.valueOf(diff)));
-            }
-        });
-        
-        dialog.button(yesBtn);
-        dialog.button(noBtn);
-        dialog.button(startBtn);
-        
-        // Show difficulty selector and start button after Yes is clicked
-//        dialog.addListener(new ChangeListener() {
-//            @Override
-//            public void changed(ChangeEvent event, Actor actor) {
-//                if (dialog.getResult() != null && dialog.getResult().getActor() == yesBtn) {
-//                    diffLabel.setVisible(true);
-//                    diffSelect.setVisible(true);
-//                    startBtn.setVisible(true);
-//                    dialog.invalidate();
-//                }
-//            }
-//        });
-        
-        dialog.show(stage);
-    }
 
     private void loadAndPlay(String replayId, ApiClient api) {
         statusLabel.setText("Loading replay data...");
         statusLabel.setColor(NeonSkin.CYAN);
-        
+
         api.loadReplay(replayId, new ApiClient.ReplayLoadCallback() {
             @Override
             public void onSuccess(String replayJson) {
@@ -251,10 +178,10 @@ public class ReplayListScreen implements Screen {
                     com.badlogic.gdx.utils.JsonReader reader = new com.badlogic.gdx.utils.JsonReader();
                     com.badlogic.gdx.utils.JsonValue root = reader.parse(replayJson);
                     boolean hadGhosts = root.getBoolean("original_had_ghosts", true);
-                    
+
                     if (!hadGhosts) {
-                        // Show dialog to choose ghosts
-                        showGhostSelectionDialog(replayJson);
+                        // Original run had ghosts disabled: keep replay ghost-free.
+                        game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));
                     } else {
                         // Start replay immediately with original ghosts
                         game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));
@@ -265,6 +192,7 @@ public class ReplayListScreen implements Screen {
                     game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));
                 }
             }
+
             @Override
             public void onError(String msg) {
                 statusLabel.setText("Load error: " + msg);
@@ -278,7 +206,7 @@ public class ReplayListScreen implements Screen {
         Gdx.gl.glClearColor(
                 MazeRenderer.BG_COLOR.r,
                 MazeRenderer.BG_COLOR.g,
-                MazeRenderer.BG_COLOR.b, 
+                MazeRenderer.BG_COLOR.b,
                 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
@@ -291,12 +219,22 @@ public class ReplayListScreen implements Screen {
         stage.getViewport().update(width, height, true);
     }
 
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() { dispose(); }
-    
+    @Override
+    public void pause() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void hide() {
+        dispose();
+    }
+
     @Override
     public void dispose() {
-        if (stage != null) stage.dispose();
+        if (stage != null)
+            stage.dispose();
     }
 }
