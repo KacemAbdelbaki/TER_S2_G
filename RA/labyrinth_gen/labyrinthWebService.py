@@ -1,18 +1,24 @@
 """
 labyrinthWebService.py - Flask REST API for labyrinth generation.
 
+Swagger UI available at /apidocs/
+
 Endpoints
 ---------
 GET  /labyrinth          - Generate a maze (+ auto-save to MongoDB)
 POST /labyrinth/rate     - Rate a maze by ID (0-5)
 GET  /labyrinth/<id>     - Retrieve a specific maze by ID
 GET  /mazes              - List all saved mazes (summary)
+POST /replay             - Save a game replay
+GET  /replay/<id>        - Retrieve a replay by ID
+GET  /replays            - List all saved replays
 """
 
 import json
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flasgger import Swagger
 from bson.errors import InvalidId
 
 from DFS import full_maze as dfs_full_maze
@@ -26,6 +32,36 @@ from db import save_replay, get_replay_by_id, list_replays
 app = Flask(__name__)
 CORS(app)
 
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/apidocs/",
+}
+
+swagger_template = {
+    "info": {
+        "title": "Labyrinth API",
+        "description": "REST API for generating, rating, and managing mazes and game replays.",
+        "version": "1.0.0",
+    },
+    "tags": [
+        {"name": "Maze", "description": "Maze generation and retrieval"},
+        {"name": "Rating", "description": "Maze rating"},
+        {"name": "Replay", "description": "Game replay management"},
+    ],
+}
+
+Swagger(app, config=swagger_config, template=swagger_template)
+
 ALGORITHMS = {
     "dfs": dfs_full_maze,
     "kruskal": kruskal_full_maze,
@@ -36,6 +72,43 @@ ALGORITHMS = {
 
 @app.route("/labyrinth", methods=["GET"])
 def get_labyrinth():
+    """Generate a maze and save it to the database.
+    ---
+    tags:
+      - Maze
+    parameters:
+      - name: algorithm
+        in: query
+        type: string
+        required: false
+        default: dfs
+        enum: [dfs, kruskal, prim, tetris]
+        description: Algorithm used to generate the maze.
+      - name: height
+        in: query
+        type: integer
+        required: false
+        default: 5
+        description: Maze height (3-50).
+      - name: width
+        in: query
+        type: integer
+        required: false
+        default: 6
+        description: Maze width (3-50).
+      - name: steps
+        in: query
+        type: string
+        required: false
+        default: "false"
+        enum: ["true", "false"]
+        description: Whether to record generation steps.
+    responses:
+      200:
+        description: Generated maze.
+      400:
+        description: Invalid parameters.
+    """
     # --- Parse parameters ---------------------------------------------------
     algo_name = request.args.get("algorithm", "dfs").lower()
     if algo_name not in ALGORITHMS:
@@ -72,7 +145,36 @@ def get_labyrinth():
 
 @app.route("/labyrinth/rate", methods=["POST"])
 def rate_labyrinth():
-    """Rate a maze.  Expects JSON body: {"maze_id": "<id>", "rating": 0-5}"""
+    """Rate a maze by its ID.
+    ---
+    tags:
+      - Rating
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - maze_id
+            - rating
+          properties:
+            maze_id:
+              type: string
+              description: The maze's MongoDB ID.
+            rating:
+              type: number
+              minimum: 0
+              maximum: 5
+              description: Rating score (0-5).
+    responses:
+      200:
+        description: Updated rating info.
+      400:
+        description: Invalid input.
+      404:
+        description: Maze not found.
+    """
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
@@ -100,7 +202,22 @@ def rate_labyrinth():
 
 @app.route("/labyrinth/<maze_id>", methods=["GET"])
 def get_labyrinth_by_id(maze_id):
-    """Retrieve a previously saved maze by its MongoDB ID."""
+    """Retrieve a maze by its ID.
+    ---
+    tags:
+      - Maze
+    parameters:
+      - name: maze_id
+        in: path
+        type: string
+        required: true
+        description: The maze's MongoDB ID.
+    responses:
+      200:
+        description: Full maze data.
+      404:
+        description: Maze not found.
+    """
     doc = get_maze_by_id(maze_id)
     if doc is None:
         return jsonify({"error": f"Maze '{maze_id}' not found"}), 404
@@ -119,7 +236,21 @@ def get_labyrinth_by_id(maze_id):
 
 @app.route("/mazes", methods=["GET"])
 def get_all_mazes():
-    """List recent saved mazes (metadata only, no grid data)."""
+    """List all saved mazes (metadata only).
+    ---
+    tags:
+      - Maze
+    parameters:
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        default: 50
+        description: Maximum number of mazes to return.
+    responses:
+      200:
+        description: List of maze summaries.
+    """
     limit = request.args.get("limit", 50, type=int)
     docs = list_mazes(limit)
     results = []
@@ -142,7 +273,63 @@ def get_all_mazes():
 
 @app.route("/replay", methods=["POST"])
 def save_game_replay():
-    """Save a game replay.  Expects a JSON body with replay data."""
+    """Save a game replay.
+    ---
+    tags:
+      - Replay
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - mazeId
+          properties:
+            mazeId:
+              type: string
+              description: ID of the associated maze.
+            algorithm:
+              type: string
+              description: Algorithm used to generate the maze.
+            mazeWidth:
+              type: integer
+            mazeHeight:
+              type: integer
+            playerType:
+              type: string
+              enum: [human, bot]
+              default: human
+            botStrategy:
+              type: string
+            finalScore:
+              type: integer
+            finalDotsEaten:
+              type: integer
+            won:
+              type: boolean
+            durationSeconds:
+              type: number
+            frameCount:
+              type: integer
+            frames:
+              type: array
+              items:
+                type: object
+            inputs:
+              type: array
+              items:
+                type: object
+    responses:
+      201:
+        description: Replay saved successfully.
+      400:
+        description: Invalid input.
+      404:
+        description: Referenced maze not found.
+      503:
+        description: Database unavailable.
+    """
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
@@ -183,7 +370,22 @@ def save_game_replay():
 
 @app.route("/replay/<replay_id>", methods=["GET"])
 def get_game_replay(replay_id):
-    """Retrieve a previously saved replay by its ID."""
+    """Retrieve a replay by its ID.
+    ---
+    tags:
+      - Replay
+    parameters:
+      - name: replay_id
+        in: path
+        type: string
+        required: true
+        description: The replay's MongoDB ID.
+    responses:
+      200:
+        description: Full replay data.
+      404:
+        description: Replay not found.
+    """
     doc = get_replay_by_id(replay_id)
     if doc is None:
         return jsonify({"error": f"Replay '{replay_id}' not found"}), 404
@@ -194,7 +396,26 @@ def get_game_replay(replay_id):
 
 @app.route("/replays", methods=["GET"])
 def get_all_replays():
-    """List recent replays (metadata only, no frames/inputs)."""
+    """List saved replays (metadata only).
+    ---
+    tags:
+      - Replay
+    parameters:
+      - name: maze_id
+        in: query
+        type: string
+        required: false
+        description: Filter replays by maze ID.
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        default: 50
+        description: Maximum number of replays to return.
+    responses:
+      200:
+        description: List of replay summaries.
+    """
     maze_id = request.args.get("maze_id")
     limit = request.args.get("limit", 50, type=int)
     docs = list_replays(maze_id=maze_id, limit=limit)
