@@ -75,14 +75,14 @@ public class MazeScreen implements Screen {
     private float modeTimer = 0f;
     private int modePhase = 0;
     // Classic Pac-Man scatter/chase durations (seconds)
-    private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
+    private static final float[] MODE_DURATIONS = { 7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE };
     private boolean frightenedActive = false;
     private float frightenedTimer = 0f;
     private static final float FRIGHTENED_DURATION = 6f;
 
     // Replay recorder
     private GameRecorder recorder;
-    
+
     // AI Autoplay
     private BotAgent botAgent;
 
@@ -97,13 +97,14 @@ public class MazeScreen implements Screen {
     private Ghost.Difficulty startingDifficulty;
 
     public MazeScreen(Main game, String algorithm, int height, int width,
-                      boolean animated, String baseUrl, String diffString, boolean skipGhosts) {
-        this(game, algorithm, height, width, animated, baseUrl, diffString, skipGhosts, false, BotAgent.BotStrategy.GREEDY);
+            boolean animated, String baseUrl, String diffString, boolean skipGhosts) {
+        this(game, algorithm, height, width, animated, baseUrl, diffString, skipGhosts, false,
+                BotAgent.BotStrategy.GREEDY);
     }
-    
+
     public MazeScreen(Main game, String algorithm, int height, int width,
-                      boolean animated, String baseUrl, String diffString, boolean skipGhosts, 
-                      boolean aiAutoplay, BotAgent.BotStrategy pacmanStrategy) {
+            boolean animated, String baseUrl, String diffString, boolean skipGhosts,
+            boolean aiAutoplay, BotAgent.BotStrategy pacmanStrategy) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
@@ -134,15 +135,16 @@ public class MazeScreen implements Screen {
         // Wire rating listener
         hud.setRatingListener(rating -> {
             Gdx.app.log("MazeScreen", "Rating clicked: " + rating
-                + ", maze.id=" + (maze != null ? maze.id : "null")
-                + ", apiClient=" + (apiClient != null)
-                + ", baseUrl=" + (apiClient != null ? apiClient.getBaseUrl() : "null"));
+                    + ", maze.id=" + (maze != null ? maze.id : "null")
+                    + ", apiClient=" + (apiClient != null)
+                    + ", baseUrl=" + (apiClient != null ? apiClient.getBaseUrl() : "null"));
             if (maze != null && maze.id != null && apiClient != null) {
                 apiClient.rateMaze(maze.id, rating, new ApiClient.RatingCallback() {
                     @Override
                     public void onSuccess(float newRating, int totalVotes) {
                         hud.showRatingResult(newRating, totalVotes);
                     }
+
                     @Override
                     public void onError(String message) {
                         hud.showRatingError(message);
@@ -156,7 +158,9 @@ public class MazeScreen implements Screen {
         // Wire animation controls
         hud.getPauseButton().addListener(new ChangeListener() {
             @Override
-            public void changed(ChangeEvent e, Actor a) { animator.togglePause(); }
+            public void changed(ChangeEvent e, Actor a) {
+                animator.togglePause();
+            }
         });
         hud.getRestartButton().addListener(new ChangeListener() {
             @Override
@@ -241,17 +245,18 @@ public class MazeScreen implements Screen {
             // Start 2 rows below ghost room
             for (int r = ghostMaxR + 1; r < maze.height; r++) {
                 if (maze.grid[r][centerCol] != null && !maze.grid[r][centerCol].isGhost) {
-                    return new int[]{r, centerCol};
+                    return new int[] { r, centerCol };
                 }
             }
         }
 
         // Fallback: center bottom
-        return new int[]{maze.height - 1, maze.width / 2};
+        return new int[] { maze.height - 1, maze.width / 2 };
     }
 
     private void activatePlayer() {
-        if (maze == null) return;
+        if (maze == null)
+            return;
         playerActive = true;
 
         int[] start = findPacManStart();
@@ -278,7 +283,7 @@ public class MazeScreen implements Screen {
 
         // Start recording
         recorder = new GameRecorder(
-            maze.id, algorithm, maze.width, maze.height);
+                maze.id, algorithm, maze.width, maze.height);
         recorder.setPacmanAgentType(aiAutoplay ? "bot-" + pacmanStrategy.name().toLowerCase() : "human");
         recorder.setOriginalHadGhosts(!skipGhosts);
         player.setRecorder(recorder);
@@ -300,7 +305,7 @@ public class MazeScreen implements Screen {
             }
         }
 
-        int topR    = hasGhostRoom ? gMinR : maze.height / 2;
+        int topR = hasGhostRoom ? gMinR : maze.height / 2;
         int bottomR = hasGhostRoom ? gMaxR : maze.height / 2;
         int centerC = hasGhostRoom ? (gMinC + gMaxC) / 2 : maze.width / 2;
 
@@ -308,12 +313,12 @@ public class MazeScreen implements Screen {
         int outsideR = Math.max(topR - 1, 0);
         blinky = new Blinky(maze, outsideR, centerC);
         // Pinky in the middle (bottom center)
-        pinky  = new Pinky(maze, bottomR, centerC);
+        pinky = new Pinky(maze, bottomR, centerC);
         // Inky on the left (bottom left)
-        inky   = new Inky(maze, bottomR, Math.max(centerC - 1, 0), blinky);
+        inky = new Inky(maze, bottomR, Math.max(centerC - 1, 0), blinky);
         // Clyde on the right (bottom right)
-        clyde  = new Clyde(maze, bottomR, Math.min(centerC + 1, maze.width - 1));
-        ghosts = new Ghost[]{blinky, pinky, inky, clyde};
+        clyde = new Clyde(maze, bottomR, Math.min(centerC + 1, maze.width - 1));
+        ghosts = new Ghost[] { blinky, pinky, inky, clyde };
 
         float cs = mazeRenderer.getCellSize();
         for (Ghost g : ghosts) {
@@ -346,12 +351,13 @@ public class MazeScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.P)) {
             if (recorder != null) {
                 com.labyrinth.replay.AISimulator.runSimulation(recorder, maze);
-                if (hud != null) hud.getStage().getActors().forEach(a -> {
-                   if (a instanceof com.badlogic.gdx.scenes.scene2d.ui.Table) {
-                       // Temporary visual feedback
-                       System.out.println("Exported CSV!");
-                   }
-                });
+                if (hud != null)
+                    hud.getStage().getActors().forEach(a -> {
+                        if (a instanceof com.badlogic.gdx.scenes.scene2d.ui.Table) {
+                            // Temporary visual feedback
+                            System.out.println("Exported CSV!");
+                        }
+                    });
             }
         }
 
@@ -369,7 +375,7 @@ public class MazeScreen implements Screen {
             if (aiAutoplay && botAgent != null) {
                 botAgent.setGameState(player.dots, ghosts, player.gridRow, player.gridCol);
             }
-            
+
             player.update(delta);
 
             // Detect power pellet eat via flag set by Player
@@ -397,9 +403,14 @@ public class MazeScreen implements Screen {
 
             // Record frame
             if (recorder != null && recorder.isRecording()) {
-                int[] gRows = new int[4], gCols = new int[4], gModes = new int[4];
-                float[] gVX = new float[4], gVY = new float[4];
+                int[] gRows = null, gCols = null, gModes = null;
+                float[] gVX = null, gVY = null;
                 if (!skipGhosts && ghosts != null) {
+                    gRows = new int[4];
+                    gCols = new int[4];
+                    gModes = new int[4];
+                    gVX = new float[4];
+                    gVY = new float[4];
                     for (int i = 0; i < ghosts.length; i++) {
                         gRows[i] = ghosts[i].getGridRow();
                         gCols[i] = ghosts[i].getGridCol();
@@ -409,10 +420,10 @@ public class MazeScreen implements Screen {
                     }
                 }
                 recorder.recordFrame(player.getElapsedTime(),
-                    player.gridRow, player.gridCol, player.direction,
-                    player.visualX, player.visualY,
-                    player.score, player.dotsEaten, player.lives,
-                    player.isWon(), gRows, gCols, gModes, gVX, gVY);
+                        player.gridRow, player.gridCol, player.direction,
+                        player.visualX, player.visualY,
+                        player.score, player.dotsEaten, player.lives,
+                        player.isWon(), gRows, gCols, gModes, gVX, gVY);
             }
             if (player.isWon() && recorder != null && recorder.isRecording()) {
                 recorder.stop();
@@ -454,9 +465,11 @@ public class MazeScreen implements Screen {
     }
 
     private void toggleDifficulty() {
-        if (ghosts == null || ghosts.length == 0) return;
+        if (ghosts == null || ghosts.length == 0)
+            return;
         Ghost.Difficulty current = ghosts[0].getDifficulty();
-        Ghost.Difficulty next = (current == Ghost.Difficulty.CLASSIC) ? Ghost.Difficulty.A_STAR : Ghost.Difficulty.CLASSIC;
+        Ghost.Difficulty next = (current == Ghost.Difficulty.CLASSIC) ? Ghost.Difficulty.A_STAR
+                : Ghost.Difficulty.CLASSIC;
         for (Ghost g : ghosts) {
             g.setDifficulty(next);
         }
@@ -583,6 +596,7 @@ public class MazeScreen implements Screen {
             public void onSuccess(String replayId) {
                 Gdx.app.log("MazeScreen", "Replay saved: " + replayId);
             }
+
             @Override
             public void onError(String message) {
                 Gdx.app.log("MazeScreen", "Replay save failed: " + message);
@@ -630,10 +644,18 @@ public class MazeScreen implements Screen {
         // Base rotation depending on direction
         float baseAngle;
         switch (player.direction) {
-            case Player.DIR_UP:    baseAngle = 90;  break;
-            case Player.DIR_LEFT:  baseAngle = 180; break;
-            case Player.DIR_DOWN:  baseAngle = 270; break;
-            default:               baseAngle = 0;   break; // RIGHT
+            case Player.DIR_UP:
+                baseAngle = 90;
+                break;
+            case Player.DIR_LEFT:
+                baseAngle = 180;
+                break;
+            case Player.DIR_DOWN:
+                baseAngle = 270;
+                break;
+            default:
+                baseAngle = 0;
+                break; // RIGHT
         }
 
         // Draw pie-slice arc (full circle minus mouth wedge)
@@ -684,7 +706,7 @@ public class MazeScreen implements Screen {
         public boolean touchDragged(int screenX, int screenY, int pointer) {
             if (dragging) {
                 camera.translate(-Gdx.input.getDeltaX() * camera.zoom,
-                                  Gdx.input.getDeltaY() * camera.zoom);
+                        Gdx.input.getDeltaY() * camera.zoom);
                 return true;
             }
             return false;
@@ -715,14 +737,26 @@ public class MazeScreen implements Screen {
         }
     }
 
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() { dispose(); }
+    @Override
+    public void pause() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void hide() {
+        dispose();
+    }
 
     @Override
     public void dispose() {
-        if (mazeRenderer != null) mazeRenderer.dispose();
-        if (pacmanSr != null) pacmanSr.dispose();
-        if (hud != null) hud.dispose();
+        if (mazeRenderer != null)
+            mazeRenderer.dispose();
+        if (pacmanSr != null)
+            pacmanSr.dispose();
+        if (hud != null)
+            hud.dispose();
     }
 }

@@ -84,7 +84,7 @@ public class RaceScreen implements Screen {
     private int botPrevRow = -1, botPrevCol = -1;
 
     // Ghost mode schedule (same for both lanes)
-    private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
+    private static final float[] MODE_DURATIONS = { 7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE };
     private static final float FRIGHTENED_DURATION = 6f;
 
     private boolean raceFinished = false;
@@ -92,8 +92,8 @@ public class RaceScreen implements Screen {
     private boolean replaySaved = false;
 
     public RaceScreen(Main game, String algorithm, int height, int width,
-                      String baseUrl, String diffString,
-                      BotAgent.BotStrategy botStrategy, boolean skipGhosts) {
+            String baseUrl, String diffString,
+            BotAgent.BotStrategy botStrategy, boolean skipGhosts) {
         this.game = game;
         this.algorithm = algorithm;
         this.requestHeight = height;
@@ -136,14 +136,16 @@ public class RaceScreen implements Screen {
 
         TextButton backBtn = new TextButton("< Menu", skin, "default");
         backBtn.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
                 game.setScreen(new MenuScreen(game));
             }
         });
 
         TextButton toggleBtn = new TextButton("Toggle View", skin, "default");
         toggleBtn.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
                 overlayMode = !overlayMode;
                 modeLbl.setText(overlayMode ? "OVERLAY" : "SPLIT");
             }
@@ -174,7 +176,8 @@ public class RaceScreen implements Screen {
         InputMultiplexer mux = new InputMultiplexer();
         mux.addProcessor(hudStage);
         mux.addProcessor(new InputAdapter() {
-            @Override public boolean keyDown(int keycode) {
+            @Override
+            public boolean keyDown(int keycode) {
                 if (keycode == Input.Keys.ESCAPE) {
                     game.setScreen(new MenuScreen(game));
                     return true;
@@ -194,12 +197,15 @@ public class RaceScreen implements Screen {
         statusLbl.setColor(NeonSkin.CYAN);
         apiClient = new ApiClient(baseUrl);
         apiClient.fetchMaze(algorithm, requestHeight, requestWidth, false, new ApiClient.MazeCallback() {
-            @Override public void onSuccess(MazeData data) {
+            @Override
+            public void onSuccess(MazeData data) {
                 maze = data;
                 loading = false;
                 initRace();
             }
-            @Override public void onError(String message) {
+
+            @Override
+            public void onError(String message) {
                 loading = false;
                 statusLbl.setText("Error: " + message);
                 statusLbl.setColor(NeonSkin.ERROR_RED);
@@ -231,14 +237,18 @@ public class RaceScreen implements Screen {
         float px = rendererLeft.gridToScreenX(start[1]) + cs / 2f;
         float py = rendererLeft.gridToScreenY(start[0], maze.height) + cs / 2f;
         humanPlayer.setVisualPosition(px, py);
-        humanPrevRow = start[0]; humanPrevCol = start[1];
+        humanPrevRow = start[0];
+        humanPrevCol = start[1];
         humanRecorder = new GameRecorder(maze.id, algorithm, maze.width, maze.height);
+        humanRecorder.setOriginalHadGhosts(!skipGhosts);
         humanPlayer.setRecorder(humanRecorder);
         if (!skipGhosts) {
             humanGhosts = spawnGhosts(rendererLeft);
         }
-        humanModeTimer = 0; humanModePhase = 0;
-        humanFrightened = false; humanGameOver = false;
+        humanModeTimer = 0;
+        humanModePhase = 0;
+        humanFrightened = false;
+        humanGameOver = false;
 
         // Bot lane
         botPlayer = new Player();
@@ -249,14 +259,18 @@ public class RaceScreen implements Screen {
         px = rendererRight.gridToScreenX(start[1]) + cs / 2f;
         py = rendererRight.gridToScreenY(start[0], maze.height) + cs / 2f;
         botPlayer.setVisualPosition(px, py);
-        botPrevRow = start[0]; botPrevCol = start[1];
+        botPrevRow = start[0];
+        botPrevCol = start[1];
         botRecorder = new GameRecorder(maze.id, algorithm, maze.width, maze.height);
+        botRecorder.setOriginalHadGhosts(!skipGhosts);
         botPlayer.setRecorder(botRecorder);
         if (!skipGhosts) {
             botGhosts = spawnGhosts(rendererRight);
         }
-        botModeTimer = 0; botModePhase = 0;
-        botFrightened = false; botGameOver = false;
+        botModeTimer = 0;
+        botModePhase = 0;
+        botFrightened = false;
+        botGameOver = false;
 
         statusLbl.setText("");
     }
@@ -269,16 +283,18 @@ public class RaceScreen implements Screen {
             for (int c = 0; c < maze.width; c++)
                 if (maze.grid[r][c] != null && maze.grid[r][c].isGhost) {
                     hasGR = true;
-                    ghostMinR = Math.min(ghostMinR, r); ghostMaxR = Math.max(ghostMaxR, r);
-                    ghostMinC = Math.min(ghostMinC, c); ghostMaxC = Math.max(ghostMaxC, c);
+                    ghostMinR = Math.min(ghostMinR, r);
+                    ghostMaxR = Math.max(ghostMaxR, r);
+                    ghostMinC = Math.min(ghostMinC, c);
+                    ghostMaxC = Math.max(ghostMaxC, c);
                 }
         if (hasGR) {
             int cc = (ghostMinC + ghostMaxC) / 2;
             for (int r = ghostMaxR + 1; r < maze.height; r++)
                 if (maze.grid[r][cc] != null && !maze.grid[r][cc].isGhost)
-                    return new int[]{r, cc};
+                    return new int[] { r, cc };
         }
-        return new int[]{maze.height - 1, maze.width / 2};
+        return new int[] { maze.height - 1, maze.width / 2 };
     }
 
     private Ghost[] spawnGhosts(MazeRenderer renderer) {
@@ -288,17 +304,19 @@ public class RaceScreen implements Screen {
             for (int c = 0; c < maze.width; c++)
                 if (maze.grid[r][c] != null && maze.grid[r][c].isGhost) {
                     hasGR = true;
-                    gMinR = Math.min(gMinR, r); gMaxR = Math.max(gMaxR, r);
-                    gMinC = Math.min(gMinC, c); gMaxC = Math.max(gMaxC, c);
+                    gMinR = Math.min(gMinR, r);
+                    gMaxR = Math.max(gMaxR, r);
+                    gMinC = Math.min(gMinC, c);
+                    gMaxC = Math.max(gMaxC, c);
                 }
         int cR = hasGR ? (gMinR + gMaxR) / 2 : maze.height / 2;
         int cC = hasGR ? (gMinC + gMaxC) / 2 : maze.width / 2;
 
         Blinky b = new Blinky(maze, cR, Math.min(cC + 1, maze.width - 1));
-        Pinky  p = new Pinky(maze, cR, Math.max(cC - 1, 0));
-        Inky   i = new Inky(maze, Math.min(cR + 1, maze.height - 1), Math.min(cC + 2, maze.width - 1), b);
-        Clyde  cl = new Clyde(maze, cR, Math.max(cC - 2, 0));
-        Ghost[] ghosts = {b, p, i, cl};
+        Pinky p = new Pinky(maze, cR, Math.max(cC - 1, 0));
+        Inky i = new Inky(maze, Math.min(cR + 1, maze.height - 1), Math.min(cC + 2, maze.width - 1), b);
+        Clyde cl = new Clyde(maze, cR, Math.max(cC - 2, 0));
+        Ghost[] ghosts = { b, p, i, cl };
 
         float cs = renderer.getCellSize();
         for (Ghost g : ghosts) {
@@ -343,11 +361,11 @@ public class RaceScreen implements Screen {
         // HUD (always full screen)
         float elapsed = Math.max(humanPlayer.getElapsedTime(), botPlayer.getElapsedTime());
         humanScoreLbl.setText("HUMAN: " + humanPlayer.score +
-            "  Dots:" + humanPlayer.getDotsRemaining() +
-            "  Lives:" + humanPlayer.lives);
+                "  Dots:" + humanPlayer.getDotsRemaining() +
+                "  Lives:" + humanPlayer.lives);
         botScoreLbl.setText("BOT(" + botStrategy.name() + "): " + botPlayer.score +
-            "  Dots:" + botPlayer.getDotsRemaining() +
-            "  Lives:" + botPlayer.lives);
+                "  Dots:" + botPlayer.getDotsRemaining() +
+                "  Lives:" + botPlayer.lives);
         timerLbl.setText(String.format("%.1fs", elapsed));
 
         hudStage.act(delta);
@@ -359,14 +377,15 @@ public class RaceScreen implements Screen {
     // ------------------------------------------------------------------
 
     private void updateLane(float delta, Player player, Agent agent,
-                            Ghost[] ghosts, MazeRenderer renderer, boolean isHuman) {
+            Ghost[] ghosts, MazeRenderer renderer, boolean isHuman) {
         boolean laneGameOver = isHuman ? humanGameOver : botGameOver;
-        if (laneGameOver || player.isWon()) return;
+        if (laneGameOver || player.isWon())
+            return;
 
         // Feed bot agent with current game state
         if (!isHuman && agent instanceof BotAgent) {
             ((BotAgent) agent).setGameState(player.dots, ghosts,
-                player.gridRow, player.gridCol);
+                    player.gridRow, player.gridCol);
         }
 
         player.update(delta);
@@ -374,12 +393,18 @@ public class RaceScreen implements Screen {
         // Power pellet
         if (player.powerPelletEaten) {
             player.powerPelletEaten = false;
-            if (isHuman) { humanFrightened = true; humanFrightTimer = FRIGHTENED_DURATION; }
-            else { botFrightened = true; botFrightTimer = FRIGHTENED_DURATION; }
+            if (isHuman) {
+                humanFrightened = true;
+                humanFrightTimer = FRIGHTENED_DURATION;
+            } else {
+                botFrightened = true;
+                botFrightTimer = FRIGHTENED_DURATION;
+            }
             player.resetGhostCombo();
             if (!skipGhosts && ghosts != null) {
                 for (Ghost g : ghosts)
-                    if (g.getMode() != Ghost.GhostMode.EATEN) g.setMode(Ghost.GhostMode.FRIGHTENED);
+                    if (g.getMode() != Ghost.GhostMode.EATEN)
+                        g.setMode(Ghost.GhostMode.FRIGHTENED);
             }
         }
 
@@ -391,8 +416,13 @@ public class RaceScreen implements Screen {
             float tx = renderer.gridToScreenX(player.gridCol) + cs / 2f;
             float ty = renderer.gridToScreenY(player.gridRow, maze.height) + cs / 2f;
             player.setTarget(tx, ty);
-            if (isHuman) { humanPrevRow = player.gridRow; humanPrevCol = player.gridCol; }
-            else { botPrevRow = player.gridRow; botPrevCol = player.gridCol; }
+            if (isHuman) {
+                humanPrevRow = player.gridRow;
+                humanPrevCol = player.gridCol;
+            } else {
+                botPrevRow = player.gridRow;
+                botPrevCol = player.gridCol;
+            }
         }
 
         // Ghost mode timer
@@ -402,11 +432,17 @@ public class RaceScreen implements Screen {
             int modePhase = isHuman ? humanModePhase : botModePhase;
             modeTimer += delta;
             if (modePhase < MODE_DURATIONS.length && modeTimer >= MODE_DURATIONS[modePhase]) {
-                modeTimer = 0; modePhase++;
+                modeTimer = 0;
+                modePhase++;
             }
-            if (isHuman) { humanModeTimer = modeTimer; humanModePhase = modePhase; }
-            else { botModeTimer = modeTimer; botModePhase = modePhase; }
-            
+            if (isHuman) {
+                humanModeTimer = modeTimer;
+                humanModePhase = modePhase;
+            } else {
+                botModeTimer = modeTimer;
+                botModePhase = modePhase;
+            }
+
             if (!skipGhosts && ghosts != null) {
                 boolean scatter = (modePhase % 2 == 0);
                 for (Ghost g : ghosts)
@@ -417,10 +453,16 @@ public class RaceScreen implements Screen {
             float ft = isHuman ? humanFrightTimer : botFrightTimer;
             ft -= delta;
             if (ft <= 0) {
-                if (isHuman) humanFrightened = false; else botFrightened = false;
+                if (isHuman)
+                    humanFrightened = false;
+                else
+                    botFrightened = false;
                 player.resetGhostCombo();
             }
-            if (isHuman) humanFrightTimer = ft; else botFrightTimer = ft;
+            if (isHuman)
+                humanFrightTimer = ft;
+            else
+                botFrightTimer = ft;
         }
         // Move and collide ghosts
         if (!skipGhosts && ghosts != null) {
@@ -454,11 +496,15 @@ public class RaceScreen implements Screen {
                         g.setMode(Ghost.GhostMode.EATEN);
                     } else if (g.getMode() != Ghost.GhostMode.EATEN) {
                         if (player.loseLife()) {
-                            if (isHuman) humanGameOver = true; else botGameOver = true;
+                            if (isHuman)
+                                humanGameOver = true;
+                            else
+                                botGameOver = true;
                             player.gameOver = true;
                         } else {
                             int[] start = findPacManStart();
-                            player.gridRow = start[0]; player.gridCol = start[1];
+                            player.gridRow = start[0];
+                            player.gridCol = start[1];
                             float cs = renderer.getCellSize();
                             float px = renderer.gridToScreenX(start[1]) + cs / 2f;
                             float py = renderer.gridToScreenY(start[0], maze.height) + cs / 2f;
@@ -476,18 +522,25 @@ public class RaceScreen implements Screen {
         // Record frame
         if (isHuman && humanRecorder != null && humanRecorder.isRecording()) {
             recordFrame(humanRecorder, player, ghosts);
-            if (player.isWon()) humanRecorder.stop();
+            if (player.isWon())
+                humanRecorder.stop();
         }
         if (!isHuman && botRecorder != null && botRecorder.isRecording()) {
             recordFrame(botRecorder, player, ghosts);
-            if (player.isWon()) botRecorder.stop();
+            if (player.isWon())
+                botRecorder.stop();
         }
     }
 
     private void recordFrame(GameRecorder rec, Player p, Ghost[] ghosts) {
-        int[] gR = new int[4], gC = new int[4], gM = new int[4];
-        float[] gVX = new float[4], gVY = new float[4];
+        int[] gR = null, gC = null, gM = null;
+        float[] gVX = null, gVY = null;
         if (!skipGhosts && ghosts != null) {
+            gR = new int[4];
+            gC = new int[4];
+            gM = new int[4];
+            gVX = new float[4];
+            gVY = new float[4];
             for (int i = 0; i < ghosts.length; i++) {
                 gR[i] = ghosts[i].getGridRow();
                 gC[i] = ghosts[i].getGridCol();
@@ -497,12 +550,13 @@ public class RaceScreen implements Screen {
             }
         }
         rec.recordFrame(p.getElapsedTime(), p.gridRow, p.gridCol, p.direction,
-            p.visualX, p.visualY, p.score, p.dotsEaten, p.lives, p.isWon(),
-            gR, gC, gM, gVX, gVY);
+                p.visualX, p.visualY, p.score, p.dotsEaten, p.lives, p.isWon(),
+                gR, gC, gM, gVX, gVY);
     }
 
     private void checkRaceResult() {
-        if (raceFinished) return;
+        if (raceFinished)
+            return;
         boolean hDone = humanPlayer.isWon() || humanGameOver;
         boolean bDone = botPlayer.isWon() || botGameOver;
 
@@ -566,6 +620,7 @@ public class RaceScreen implements Screen {
             public void onSuccess(String replayId) {
                 Gdx.app.log("RaceScreen", "Replay saved: " + replayId);
             }
+
             @Override
             public void onError(String message) {
                 Gdx.app.log("RaceScreen", "Replay save failed: " + message);
@@ -590,8 +645,8 @@ public class RaceScreen implements Screen {
         cameraLeft.update();
 
         rendererLeft.render(maze, cameraLeft, -1,
-            humanPlayer.gridRow, humanPlayer.gridCol,
-            humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
+                humanPlayer.gridRow, humanPlayer.gridCol,
+                humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
         rendererLeft.renderActiveGhosts(humanGhosts, cameraLeft);
         renderPacMan(cameraLeft, humanPlayer, Color.YELLOW, rendererLeft);
 
@@ -603,8 +658,8 @@ public class RaceScreen implements Screen {
         cameraRight.update();
 
         rendererRight.render(maze, cameraRight, -1,
-            botPlayer.gridRow, botPlayer.gridCol,
-            botPlayer.visitedCells, botPlayer.dots, botPlayer.powerPellets);
+                botPlayer.gridRow, botPlayer.gridCol,
+                botPlayer.visitedCells, botPlayer.dots, botPlayer.powerPellets);
         rendererRight.renderActiveGhosts(botGhosts, cameraRight);
         renderPacMan(cameraRight, botPlayer, NeonSkin.CYAN, rendererRight);
 
@@ -623,16 +678,17 @@ public class RaceScreen implements Screen {
 
         // Render maze once (use human's dot state as "primary")
         rendererFull.render(maze, cameraFull, -1,
-            humanPlayer.gridRow, humanPlayer.gridCol,
-            humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
+                humanPlayer.gridRow, humanPlayer.gridCol,
+                humanPlayer.visitedCells, humanPlayer.dots, humanPlayer.powerPellets);
 
-        // Ghosts — rendered at grid positions via the full renderer so coords match the camera
+        // Ghosts — rendered at grid positions via the full renderer so coords match the
+        // camera
         rendererFull.renderActiveGhostsAtGrid(humanGhosts, cameraFull, maze.height);
 
         // Bot pac-man first (semi-transparent so human is always visible)
         renderPacManOverlay(cameraFull, botPlayer,
-            new Color(NeonSkin.CYAN.r, NeonSkin.CYAN.g, NeonSkin.CYAN.b, 0.55f),
-            rendererRight);
+                new Color(NeonSkin.CYAN.r, NeonSkin.CYAN.g, NeonSkin.CYAN.b, 0.55f),
+                rendererRight);
         // Human pac-man last (on top, full opacity, always visible)
         renderPacManOverlay(cameraFull, humanPlayer, Color.YELLOW, rendererLeft);
     }
@@ -651,7 +707,7 @@ public class RaceScreen implements Screen {
      * renderer's coordinate space so movement is smooth, not grid-snapped.
      */
     private void renderPacManOverlay(OrthographicCamera cam, Player p, Color color,
-                                      MazeRenderer laneRenderer) {
+            MazeRenderer laneRenderer) {
         float size = rendererFull.getCellSize() * 0.42f;
         float cx = remapX(p.visualX, laneRenderer, rendererFull);
         float cy = remapY(p.visualY, laneRenderer, rendererFull);
@@ -661,7 +717,8 @@ public class RaceScreen implements Screen {
     /** Remap an X coordinate from one renderer's space to another's. */
     private float remapX(float x, MazeRenderer from, MazeRenderer to) {
         float span = from.getCellSize() * maze.width;
-        if (span < 0.001f) return x;
+        if (span < 0.001f)
+            return x;
         float fraction = (x - from.getOriginX()) / span;
         return to.getOriginX() + fraction * to.getCellSize() * maze.width;
     }
@@ -669,7 +726,8 @@ public class RaceScreen implements Screen {
     /** Remap a Y coordinate from one renderer's space to another's. */
     private float remapY(float y, MazeRenderer from, MazeRenderer to) {
         float span = from.getCellSize() * maze.height;
-        if (span < 0.001f) return y;
+        if (span < 0.001f)
+            return y;
         float fraction = (y - from.getOriginY()) / span;
         return to.getOriginY() + fraction * to.getCellSize() * maze.height;
     }
@@ -679,7 +737,7 @@ public class RaceScreen implements Screen {
     }
 
     private void drawPacManShapeAt(OrthographicCamera cam, float cx, float cy,
-                                    int direction, float mouthAngle, Color color, float size) {
+            int direction, float mouthAngle, Color color, float size) {
         pacmanSr.setProjectionMatrix(cam.combined);
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
@@ -696,10 +754,18 @@ public class RaceScreen implements Screen {
 
         float baseAngle;
         switch (direction) {
-            case Player.DIR_UP:    baseAngle = 90;  break;
-            case Player.DIR_LEFT:  baseAngle = 180; break;
-            case Player.DIR_DOWN:  baseAngle = 270; break;
-            default:               baseAngle = 0;   break;
+            case Player.DIR_UP:
+                baseAngle = 90;
+                break;
+            case Player.DIR_LEFT:
+                baseAngle = 180;
+                break;
+            case Player.DIR_DOWN:
+                baseAngle = 270;
+                break;
+            default:
+                baseAngle = 0;
+                break;
         }
 
         float startAngle = baseAngle + mouthAngle;
@@ -711,9 +777,9 @@ public class RaceScreen implements Screen {
             float a1 = (float) Math.toRadians(startAngle + segAngle * i);
             float a2 = (float) Math.toRadians(startAngle + segAngle * (i + 1));
             pacmanSr.triangle(
-                cx, cy,
-                cx + (float) Math.cos(a1) * size, cy + (float) Math.sin(a1) * size,
-                cx + (float) Math.cos(a2) * size, cy + (float) Math.sin(a2) * size);
+                    cx, cy,
+                    cx + (float) Math.cos(a1) * size, cy + (float) Math.sin(a1) * size,
+                    cx + (float) Math.cos(a2) * size, cy + (float) Math.sin(a2) * size);
         }
         pacmanSr.end();
     }
@@ -736,16 +802,30 @@ public class RaceScreen implements Screen {
         }
     }
 
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() { dispose(); }
+    @Override
+    public void pause() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void hide() {
+        dispose();
+    }
 
     @Override
     public void dispose() {
-        if (rendererLeft != null) rendererLeft.dispose();
-        if (rendererRight != null) rendererRight.dispose();
-        if (rendererFull != null) rendererFull.dispose();
-        if (pacmanSr != null) pacmanSr.dispose();
-        if (hudStage != null) hudStage.dispose();
+        if (rendererLeft != null)
+            rendererLeft.dispose();
+        if (rendererRight != null)
+            rendererRight.dispose();
+        if (rendererFull != null)
+            rendererFull.dispose();
+        if (pacmanSr != null)
+            pacmanSr.dispose();
+        if (hudStage != null)
+            hudStage.dispose();
     }
 }

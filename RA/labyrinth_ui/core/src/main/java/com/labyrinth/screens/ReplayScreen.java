@@ -66,7 +66,7 @@ public class ReplayScreen implements Screen {
     private Label statusLbl, timeLbl, scoreLbl, speedLbl, frameLbl, metadataLbl;
     private Slider seekSlider;
     private boolean userSeeking = false;
-    
+
     // Ghost simulation
     private boolean spawnGhosts = false;
     private Ghost.Difficulty ghostDifficulty = Ghost.Difficulty.CLASSIC;
@@ -77,15 +77,15 @@ public class ReplayScreen implements Screen {
     private float frightenedTimer = 0f;
 
     // Ghost mode timer (same as MazeScreen)
-    private static final float[] MODE_DURATIONS = {7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE};
+    private static final float[] MODE_DURATIONS = { 7, 20, 7, 20, 5, 20, 5, Float.MAX_VALUE };
     private static final float FRIGHTENED_DURATION = 6f;
 
     /**
-     * @param game       main game instance
-     * @param replayJson full JSON of the replay document from the cloud
-     * @param baseUrl    API base URL for fetching the maze
+     * @param game        main game instance
+     * @param replayJson  full JSON of the replay document from the cloud
+     * @param baseUrl     API base URL for fetching the maze
      * @param spawnGhosts whether to spawn simulated ghosts
-     * @param ghostDiff  ghost AI difficulty (if spawning ghosts)
+     * @param ghostDiff   ghost AI difficulty (if spawning ghosts)
      */
     public ReplayScreen(Main game, String replayJson, String baseUrl, boolean spawnGhosts, Ghost.Difficulty ghostDiff) {
         this.game = game;
@@ -121,24 +121,34 @@ public class ReplayScreen implements Screen {
 
         TextButton backBtn = new TextButton("< Menu", skin, "default");
         backBtn.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
                 game.setScreen(new MenuScreen(game));
             }
         });
 
         TextButton playPause = new TextButton("Pause", skin, "default");
         playPause.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                if (replayer == null) return;
-                if (replayer.isPaused()) { replayer.resume(); playPause.setText("Pause"); }
-                else { replayer.pause(); playPause.setText("Play"); }
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
+                if (replayer == null)
+                    return;
+                if (replayer.isPaused()) {
+                    replayer.resume();
+                    playPause.setText("Pause");
+                } else {
+                    replayer.pause();
+                    playPause.setText("Play");
+                }
             }
         });
 
         TextButton speedUp = new TextButton(">>", skin, "default");
         speedUp.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                if (replayer == null) return;
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
+                if (replayer == null)
+                    return;
                 float s = replayer.getPlaybackSpeed();
                 replayer.setPlaybackSpeed(Math.min(s + 0.5f, 4f));
             }
@@ -146,8 +156,10 @@ public class ReplayScreen implements Screen {
 
         TextButton speedDown = new TextButton("<<", skin, "default");
         speedDown.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                if (replayer == null) return;
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
+                if (replayer == null)
+                    return;
                 float s = replayer.getPlaybackSpeed();
                 replayer.setPlaybackSpeed(Math.max(s - 0.5f, 0.25f));
             }
@@ -155,8 +167,10 @@ public class ReplayScreen implements Screen {
 
         TextButton resetBtn = new TextButton("Reset", skin, "default");
         resetBtn.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                if (replayer != null) replayer.reset();
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
+                if (replayer != null)
+                    replayer.reset();
             }
         });
 
@@ -185,7 +199,8 @@ public class ReplayScreen implements Screen {
         bot.bottom().pad(10);
         seekSlider = new Slider(0, 1, 0.001f, false, skin);
         seekSlider.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
+            @Override
+            public void changed(ChangeEvent e, Actor a) {
                 if (replayer != null && userSeeking) {
                     float t = seekSlider.getValue() * replayer.getTotalDuration();
                     replayer.seekToTime(t);
@@ -194,13 +209,16 @@ public class ReplayScreen implements Screen {
         });
         // Detect touch begin/end for seeking
         seekSlider.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
-            @Override public boolean touchDown(com.badlogic.gdx.scenes.scene2d.InputEvent event,
-                                                float x, float y, int pointer, int button) {
+            @Override
+            public boolean touchDown(com.badlogic.gdx.scenes.scene2d.InputEvent event,
+                    float x, float y, int pointer, int button) {
                 userSeeking = true;
                 return false; // let ChangeListener also handle it
             }
-            @Override public void touchUp(com.badlogic.gdx.scenes.scene2d.InputEvent event,
-                                           float x, float y, int pointer, int button) {
+
+            @Override
+            public void touchUp(com.badlogic.gdx.scenes.scene2d.InputEvent event,
+                    float x, float y, int pointer, int button) {
                 userSeeking = false;
             }
         });
@@ -217,10 +235,17 @@ public class ReplayScreen implements Screen {
         InputMultiplexer mux = new InputMultiplexer();
         mux.addProcessor(hudStage);
         mux.addProcessor(new InputAdapter() {
-            @Override public boolean keyDown(int keycode) {
-                if (keycode == Input.Keys.ESCAPE) { game.setScreen(new MenuScreen(game)); return true; }
+            @Override
+            public boolean keyDown(int keycode) {
+                if (keycode == Input.Keys.ESCAPE) {
+                    game.setScreen(new MenuScreen(game));
+                    return true;
+                }
                 if (keycode == Input.Keys.SPACE && replayer != null) {
-                    if (replayer.isPaused()) replayer.resume(); else replayer.pause();
+                    if (replayer.isPaused())
+                        replayer.resume();
+                    else
+                        replayer.pause();
                     return true;
                 }
                 return false;
@@ -243,17 +268,20 @@ public class ReplayScreen implements Screen {
         if (mazeId != null && !mazeId.isEmpty()) {
             // Fetch the specific maze used in this recording
             apiClient.fetchMazeById(mazeId, new ApiClient.MazeCallback() {
-                    @Override public void onSuccess(MazeData data) {
-                        maze = data;
-                        loading = false;
-                        initReplay();
-                    }
-                    @Override public void onError(String msg) {
-                        loading = false;
-                        statusLbl.setText("Could not load maze: " + msg);
-                        statusLbl.setColor(NeonSkin.ERROR_RED);
-                    }
-                });
+                @Override
+                public void onSuccess(MazeData data) {
+                    maze = data;
+                    loading = false;
+                    initReplay();
+                }
+
+                @Override
+                public void onError(String msg) {
+                    loading = false;
+                    statusLbl.setText("Could not load maze: " + msg);
+                    statusLbl.setColor(NeonSkin.ERROR_RED);
+                }
+            });
         } else {
             loading = false;
             statusLbl.setText("No maze ID in replay — cannot render maze");
@@ -268,16 +296,16 @@ public class ReplayScreen implements Screen {
         powerPellets = new boolean[maze.height][maze.width];
         visitedCells = new boolean[maze.height][maze.width];
         statusLbl.setText("");
-        
+
         // Spawn simulated ghosts if requested
         if (spawnGhosts) {
             spawnReplayGhosts();
         }
-        
+
         // Update metadata display
         updateMetadataDisplay();
     }
-    
+
     private void updateMetadataDisplay() {
         String agentType = recorder.getPacmanAgentType();
         String ghostInfo;
@@ -290,7 +318,7 @@ public class ReplayScreen implements Screen {
         }
         metadataLbl.setText("By: " + agentType.toUpperCase() + " | Ghosts: " + ghostInfo);
     }
-    
+
     private void spawnReplayGhosts() {
         // Find ghost room center
         int gMinR = maze.height, gMaxR = 0, gMinC = maze.width, gMaxC = 0;
@@ -306,22 +334,22 @@ public class ReplayScreen implements Screen {
                 }
             }
         }
-        
+
         int topR = hasGhostRoom ? gMinR : maze.height / 2;
         int bottomR = hasGhostRoom ? gMaxR : maze.height / 2;
         int centerC = hasGhostRoom ? (gMinC + gMaxC) / 2 : maze.width / 2;
-        
+
         // Blinky outside ghost room
         int outsideR = Math.max(topR - 1, 0);
         Blinky blinky = new Blinky(maze, outsideR, centerC);
-        
+
         // Pinky, Inky, Clyde inside ghost room
         Pinky pinky = new Pinky(maze, bottomR, centerC);
         Inky inky = new Inky(maze, bottomR, Math.max(centerC - 1, 0), blinky);
         Clyde clyde = new Clyde(maze, bottomR, Math.min(centerC + 1, maze.width - 1));
-        
-        replayGhosts = new Ghost[]{blinky, pinky, inky, clyde};
-        
+
+        replayGhosts = new Ghost[] { blinky, pinky, inky, clyde };
+
         // Set visual positions
         float cs = mazeRenderer.getCellSize();
         for (Ghost g : replayGhosts) {
@@ -330,7 +358,7 @@ public class ReplayScreen implements Screen {
             g.setVisualPosition(gx, gy);
             g.setDifficulty(ghostDifficulty);
         }
-        
+
         ghostModeTimer = 0f;
         ghostModePhase = 0;
         frightenedActive = false;
@@ -349,7 +377,8 @@ public class ReplayScreen implements Screen {
 
         // Advance replay
         GameRecorder.FrameRecord frame = replayer.update(delta);
-        if (frame == null) frame = replayer.getCurrentFrame();
+        if (frame == null)
+            frame = replayer.getCurrentFrame();
         if (frame == null) {
             hudStage.act(delta);
             hudStage.draw();
@@ -376,11 +405,12 @@ public class ReplayScreen implements Screen {
             statusLbl.setColor(frame.won ? NeonSkin.ACCENT : NeonSkin.CYAN);
         }
 
-        // Render maze (dots not tracked frame-by-frame for observation mode, show static)
+        // Render maze (dots not tracked frame-by-frame for observation mode, show
+        // static)
         camera.update();
         mazeRenderer.render(maze, camera, -1,
-            frame.playerRow, frame.playerCol,
-            visitedCells, dots, powerPellets);
+                frame.playerRow, frame.playerCol,
+                visitedCells, dots, powerPellets);
 
         // Render Pac-Man at frame position
         float cs = mazeRenderer.getCellSize();
@@ -398,7 +428,9 @@ public class ReplayScreen implements Screen {
         // Render ghosts
         if (spawnGhosts && replayGhosts != null) {
             mazeRenderer.renderActiveGhosts(replayGhosts, camera);
-        } else if (frame.ghostRows != null && frame.ghostRows.length > 0) {
+        } else if (recorder != null && recorder.hadOriginalGhosts()
+                && frame.ghostRows != null && frame.ghostRows.length > 0
+                && frameHasMeaningfulRecordedGhosts(frame)) {
             renderReplayGhosts(frame);
         }
 
@@ -421,10 +453,18 @@ public class ReplayScreen implements Screen {
 
         float baseAngle;
         switch (dir) {
-            case Player.DIR_UP:    baseAngle = 90;  break;
-            case Player.DIR_LEFT:  baseAngle = 180; break;
-            case Player.DIR_DOWN:  baseAngle = 270; break;
-            default:               baseAngle = 0;   break;
+            case Player.DIR_UP:
+                baseAngle = 90;
+                break;
+            case Player.DIR_LEFT:
+                baseAngle = 180;
+                break;
+            case Player.DIR_DOWN:
+                baseAngle = 270;
+                break;
+            default:
+                baseAngle = 0;
+                break;
         }
 
         float mouthDeg = 30f; // fixed mouth opening for replay
@@ -437,18 +477,19 @@ public class ReplayScreen implements Screen {
             float a1 = (float) Math.toRadians(startAngle + segAngle * i);
             float a2 = (float) Math.toRadians(startAngle + segAngle * (i + 1));
             pacmanSr.triangle(cx, cy,
-                cx + (float) Math.cos(a1) * size, cy + (float) Math.sin(a1) * size,
-                cx + (float) Math.cos(a2) * size, cy + (float) Math.sin(a2) * size);
+                    cx + (float) Math.cos(a1) * size, cy + (float) Math.sin(a1) * size,
+                    cx + (float) Math.cos(a2) * size, cy + (float) Math.sin(a2) * size);
         }
         pacmanSr.end();
     }
-    
+
     /**
-     * Update simulated ghosts using real-time AI targeting the recorded Pacman position.
+     * Update simulated ghosts using real-time AI targeting the recorded Pacman
+     * position.
      */
     private void updateReplayGhosts(float delta, GameRecorder.FrameRecord frame) {
         float cs = mazeRenderer.getCellSize();
-        
+
         // Scatter/Chase mode switching (simplified - no frightened mode in replay)
         ghostModeTimer += delta;
         if (ghostModePhase < MODE_DURATIONS.length && ghostModeTimer >= MODE_DURATIONS[ghostModePhase]) {
@@ -461,7 +502,7 @@ public class ReplayScreen implements Screen {
                 g.setMode(scatter ? Ghost.GhostMode.SCATTER : Ghost.GhostMode.CHASE);
             }
         }
-        
+
         // Move ghosts using AI targeting recorded Pacman position
         for (Ghost g : replayGhosts) {
             g.update(delta);
@@ -477,14 +518,15 @@ public class ReplayScreen implements Screen {
                     g.moveInDirection(dir);
                 }
                 g.resetMoveTimer();
-                
+
                 float gx = mazeRenderer.gridToScreenX(g.getGridCol()) + cs / 2f;
                 float gy = mazeRenderer.gridToScreenY(g.getGridRow(), maze.height) + cs / 2f;
                 g.setVisualTarget(gx, gy);
             }
         }
-        
-        // Collision detection with recorded Pacman (just mark ghost as eaten, can't kill Pacman in replay)
+
+        // Collision detection with recorded Pacman (just mark ghost as eaten, can't
+        // kill Pacman in replay)
         for (Ghost g : replayGhosts) {
             if (g.getGridRow() == frame.playerRow && g.getGridCol() == frame.playerCol) {
                 if (g.getMode() == Ghost.GhostMode.FRIGHTENED) {
@@ -495,12 +537,43 @@ public class ReplayScreen implements Screen {
     }
 
     private static final Color[] GHOST_COLORS = {
-        new Color(1f, 0f, 0f, 0.85f),      // Blinky red
-        new Color(1f, 0.72f, 0.84f, 0.85f), // Pinky pink
-        new Color(0f, 1f, 1f, 0.85f),       // Inky cyan
-        new Color(1f, 0.6f, 0f, 0.85f)      // Clyde orange
+            new Color(1f, 0f, 0f, 0.85f), // Blinky red
+            new Color(1f, 0.72f, 0.84f, 0.85f), // Pinky pink
+            new Color(0f, 1f, 1f, 0.85f), // Inky cyan
+            new Color(1f, 0.6f, 0f, 0.85f) // Clyde orange
     };
     private static final Color FRIGHTENED_COLOR = new Color(0.2f, 0.2f, 1f, 0.85f);
+
+    private boolean frameHasMeaningfulRecordedGhosts(GameRecorder.FrameRecord frame) {
+        if (frame == null)
+            return false;
+
+        if (frame.ghostVisualX != null) {
+            for (float v : frame.ghostVisualX) {
+                if (v != 0f)
+                    return true;
+            }
+        }
+        if (frame.ghostVisualY != null) {
+            for (float v : frame.ghostVisualY) {
+                if (v != 0f)
+                    return true;
+            }
+        }
+        if (frame.ghostRows != null) {
+            for (int v : frame.ghostRows) {
+                if (v != 0)
+                    return true;
+            }
+        }
+        if (frame.ghostCols != null) {
+            for (int v : frame.ghostCols) {
+                if (v != 0)
+                    return true;
+            }
+        }
+        return false;
+    }
 
     private void renderReplayGhosts(GameRecorder.FrameRecord frame) {
         float cs = mazeRenderer.getCellSize();
@@ -553,17 +626,30 @@ public class ReplayScreen implements Screen {
         viewport.update(w, h, true);
         camera.position.set(viewport.getWorldWidth() / 2f, viewport.getWorldHeight() / 2f, 0);
         hudStage.getViewport().update(w, h, true);
-        if (maze != null) mazeRenderer.computeLayout(maze, viewport.getWorldWidth(), viewport.getWorldHeight());
+        if (maze != null)
+            mazeRenderer.computeLayout(maze, viewport.getWorldWidth(), viewport.getWorldHeight());
     }
 
-    @Override public void pause() {}
-    @Override public void resume() {}
-    @Override public void hide() { dispose(); }
+    @Override
+    public void pause() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void hide() {
+        dispose();
+    }
 
     @Override
     public void dispose() {
-        if (mazeRenderer != null) mazeRenderer.dispose();
-        if (pacmanSr != null) pacmanSr.dispose();
-        if (hudStage != null) hudStage.dispose();
+        if (mazeRenderer != null)
+            mazeRenderer.dispose();
+        if (pacmanSr != null)
+            pacmanSr.dispose();
+        if (hudStage != null)
+            hudStage.dispose();
     }
 }
