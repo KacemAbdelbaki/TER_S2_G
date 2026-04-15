@@ -7,15 +7,18 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.labyrinth.Main;
 import com.labyrinth.agents.BotAgent;
-import com.labyrinth.maze.MazeRenderer;
+import com.labyrinth.ui.NeonButton;
 import com.labyrinth.ui.NeonSkin;
+import com.labyrinth.ui.NeonSlider;
+import com.labyrinth.ui.NeonToggle;
 
 /**
- * Main menu screen with algorithm selection, dimension controls,
- * server configuration, and a Generate button.
+ * Modern neon-themed main menu with glassmorphism card layout,
+ * sectioned options, toggle switches, animated buttons, and custom sliders.
  */
 public class MenuScreen implements Screen {
 
@@ -26,19 +29,24 @@ public class MenuScreen implements Screen {
     // Widgets
     private SelectBox<String> algoSelect;
     private SelectBox<String> diffSelect;
-    private Slider heightSlider;
-    private Slider widthSlider;
+    private NeonSlider heightSlider;
+    private NeonSlider widthSlider;
     private Label heightValue;
     private Label widthValue;
-    private CheckBox animatedCheck;
-    private CheckBox ghostsCheck;
+    private NeonToggle animatedToggle;
+    private NeonToggle ghostsToggle;
     private TextField serverField;
-    private TextButton generateBtn;
     private Label statusLabel;
-    private CheckBox raceCheck;
+    private NeonToggle raceToggle;
     private SelectBox<String> botStrategySelect;
-    private CheckBox aiAutoplayCheck;
+    private NeonToggle aiAutoplayToggle;
     private SelectBox<String> pacmanStrategySelect;
+
+    // Conditional labels (need visibility toggling)
+    private Label pacmanStratLbl;
+    private Label botLbl;
+
+    private static final float CARD_WIDTH = 680f;
 
     public MenuScreen(Main game) {
         this.game = game;
@@ -49,37 +57,41 @@ public class MenuScreen implements Screen {
         skin = game.skin;
         stage = new Stage(new ScreenViewport());
         Gdx.input.setInputProcessor(stage);
-
         buildUI();
     }
 
+    // ===== UI construction =====
+
     private void buildUI() {
+        // Outer root fills the screen, centres the card
         Table root = new Table();
         root.setFillParent(true);
         root.center();
-        root.defaults().pad(6).center();
 
-        // Title
-        Label title = new Label("PAC-MAN LABYRINTH", skin, "title");
-        root.add(title).colspan(2).padBottom(30).row();
+        // Card panel with glassmorphism background
+        Table card = new Table();
+        Drawable panelBg = skin.getDrawable("panel-bg");
+        card.setBackground(panelBg);
+        card.defaults().pad(4, 32, 4, 32);
+        card.pad(40, 0, 32, 0);
 
-        // Algorithm
-        Label algoLbl = new Label("Generation:", skin, "default");
+        // ── Title ──
+        Label title = new Label("PAC-MAN Game", skin, "title");
+        card.add(title).colspan(2).center().padBottom(6).row();
+        Label subtitle = new Label("TER S2 - Abou Orm | Kabban | Abdelbaki | Radi", skin, "small");
+        card.add(subtitle).colspan(2).center().padBottom(24).row();
+
+        // ── GENERATION section ──
+        addSectionHeader(card, "GENERATION");
+
+        addLabeledRow(card, "Algorithm", null);
         algoSelect = new SelectBox<>(skin);
         algoSelect.setItems("DFS", "Kruskal", "Prim", "Tetris");
-        root.add(algoLbl).right().padRight(12);
-        root.add(algoSelect).width(200).left().row();
-
-        // Ghost Difficulty
-        Label diffLbl = new Label("Ghost AI:", skin, "default");
-        diffSelect = new SelectBox<>(skin);
-        diffSelect.setItems("CLASSIC", "A_STAR");
-        root.add(diffLbl).right().padRight(12);
-        root.add(diffSelect).width(200).left().row();
+        card.add(algoSelect).width(240).left().padLeft(0).row();
 
         // Height slider
-        Label hLbl = new Label("Height:", skin, "default");
-        heightSlider = new Slider(3, 30, 1, false, skin);
+        Label hLbl = new Label("Height", skin, "default");
+        heightSlider = new NeonSlider(3, 30, 1, false, skin);
         heightSlider.setValue(5);
         heightValue = new Label("5", skin, "default");
         heightSlider.addListener(new ChangeListener() {
@@ -89,14 +101,14 @@ public class MenuScreen implements Screen {
             }
         });
         Table hRow = new Table();
-        hRow.add(heightSlider).width(200).padRight(10);
+        hRow.add(heightSlider).width(220).padRight(12);
         hRow.add(heightValue).width(30);
-        root.add(hLbl).right().padRight(12);
-        root.add(hRow).left().row();
+        card.add(hLbl).right().padRight(16);
+        card.add(hRow).left().row();
 
         // Width slider
-        Label wLbl = new Label("Width:", skin, "default");
-        widthSlider = new Slider(3, 30, 1, false, skin);
+        Label wLbl = new Label("Width", skin, "default");
+        widthSlider = new NeonSlider(3, 30, 1, false, skin);
         widthSlider.setValue(6);
         widthValue = new Label("6", skin, "default");
         widthSlider.addListener(new ChangeListener() {
@@ -106,110 +118,155 @@ public class MenuScreen implements Screen {
             }
         });
         Table wRow = new Table();
-        wRow.add(widthSlider).width(200).padRight(10);
+        wRow.add(widthSlider).width(220).padRight(12);
         wRow.add(widthValue).width(30);
-        root.add(wLbl).right().padRight(12);
-        root.add(wRow).left().row();
+        card.add(wLbl).right().padRight(16);
+        card.add(wRow).left().row();
 
-        // Animated checkbox
-        animatedCheck = new CheckBox("  Animated Generation", skin);
-        animatedCheck.setChecked(true);
-        root.add(animatedCheck).colspan(2).padTop(8).row();
+        // Animated generation toggle
+        addToggleRow(card, "Animated Generation", true);
+        animatedToggle = lastToggle;
 
-        // Race mode
-        raceCheck = new CheckBox("  Race vs Bot", skin);
-        root.add(raceCheck).colspan(2).padTop(4).row();
+        // ── AI section ──
+        addSectionHeader(card, "AI");
 
-        // Enable ghosts
-        ghostsCheck = new CheckBox("  Enable Ghosts", skin);
-        ghostsCheck.setChecked(true);
-        root.add(ghostsCheck).colspan(2).padTop(4).row();
+        addLabeledRow(card, "Ghost AI", null);
+        diffSelect = new SelectBox<>(skin);
+        diffSelect.setItems("CLASSIC", "A_STAR");
+        card.add(diffSelect).width(240).left().padLeft(0).row();
 
-        // AI Autoplay checkbox
-        aiAutoplayCheck = new CheckBox("  AI Autoplay (Demo)", skin);
-        root.add(aiAutoplayCheck).colspan(2).padTop(4).row();
+        // AI Autoplay toggle
+        addToggleRow(card, "AI Autoplay (Demo)", false);
+        aiAutoplayToggle = lastToggle;
 
-        // Pacman strategy selector (visible when AI Autoplay is checked)
-        Label pacmanStratLbl = new Label("Pacman AI:", skin, "default");
+        // Pacman strategy (conditional)
+        pacmanStratLbl = new Label("Pacman AI", skin, "default");
         pacmanStrategySelect = new SelectBox<>(skin);
         pacmanStrategySelect.setItems("GREEDY", "GHOST_AVOIDANCE");
         pacmanStrategySelect.setVisible(false);
         pacmanStratLbl.setVisible(false);
-        root.add(pacmanStratLbl).right().padRight(12);
-        root.add(pacmanStrategySelect).width(200).left().row();
+        card.add(pacmanStratLbl).right().padRight(16);
+        card.add(pacmanStrategySelect).width(240).left().row();
 
-        Label botLbl = new Label("Bot Strategy:", skin, "default");
+        // ── GAMEPLAY section ──
+        addSectionHeader(card, "GAMEPLAY");
+
+        // Enable Ghosts toggle
+        addToggleRow(card, "Enable Ghosts", true);
+        ghostsToggle = lastToggle;
+
+        // Race vs Bot toggle
+        addToggleRow(card, "Race vs Bot", false);
+        raceToggle = lastToggle;
+
+        // Bot strategy (conditional)
+        botLbl = new Label("Bot Strategy", skin, "default");
         botStrategySelect = new SelectBox<>(skin);
         botStrategySelect.setItems("GREEDY", "GHOST_AVOIDANCE");
         botStrategySelect.setVisible(false);
         botLbl.setVisible(false);
-        root.add(botLbl).right().padRight(12);
-        root.add(botStrategySelect).width(200).left().row();
+        card.add(botLbl).right().padRight(16);
+        card.add(botStrategySelect).width(240).left().row();
 
-        raceCheck.addListener(new ChangeListener() {
+        // ── Mutual exclusion listeners ──
+        raceToggle.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                boolean on = raceCheck.isChecked();
+                boolean on = raceToggle.isOn();
                 botStrategySelect.setVisible(on);
                 botLbl.setVisible(on);
-                // Mutually exclusive with AI Autoplay
-                if (on) aiAutoplayCheck.setChecked(false);
+                if (on) aiAutoplayToggle.setOn(false);
             }
         });
-        
-        aiAutoplayCheck.addListener(new ChangeListener() {
+        aiAutoplayToggle.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                boolean on = aiAutoplayCheck.isChecked();
+                boolean on = aiAutoplayToggle.isOn();
                 pacmanStrategySelect.setVisible(on);
                 pacmanStratLbl.setVisible(on);
-                // Mutually exclusive with Race mode
-                if (on) raceCheck.setChecked(false);
+                if (on) raceToggle.setOn(false);
             }
         });
 
-        // Server address
-        Label serverLbl = new Label("Server:", skin, "default");
+        // ── SERVER section ──
+        addSectionHeader(card, "SERVER");
+        Label serverLbl = new Label("Address", skin, "default");
         serverField = new TextField("https://pacman-s2-g.onrender.com", skin);
-        root.add(serverLbl).right().padRight(12);
-        root.add(serverField).width(250).left().padTop(8).row();
+        card.add(serverLbl).right().padRight(16);
+        card.add(serverField).width(360).left().row();
 
-        // Generate button
-        generateBtn = new TextButton("GENERATE", skin, "accent");
-        generateBtn.addListener(new ChangeListener() {
+        // ── ACTIONS ──
+        card.add(new Actor()).colspan(2).height(16).row(); // spacer
+
+        NeonButton generateBtn = new NeonButton("GENERATE", "accent", skin);
+        generateBtn.addChangeListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 onGenerate();
             }
         });
-        root.add(generateBtn).colspan(2).width(280).height(55).padTop(24).row();
+        card.add(generateBtn).colspan(2).width(340).height(54).center().padTop(8).row();
 
-        // Watch Replay button
-        TextButton replayBtn = new TextButton("BROWSE REPLAYS", skin, "default");
-        replayBtn.addListener(new ChangeListener() {
+        NeonButton replayBtn = new NeonButton("BROWSE REPLAYS", "default", skin);
+        replayBtn.addChangeListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 onWatchReplay();
             }
         });
-        root.add(replayBtn).colspan(2).width(280).height(45).padTop(10).row();
+        card.add(replayBtn).colspan(2).width(340).height(48).center().padTop(10).row();
 
         // Status label
         statusLabel = new Label("", skin, "small");
-        root.add(statusLabel).colspan(2).padTop(12).row();
+        card.add(statusLabel).colspan(2).center().padTop(12).row();
 
-        // Credits
-        Label credits = new Label("TER S2 - Abou Orm | Kabban | Abdelbaki", skin, "small");
-        root.add(credits).colspan(2).padTop(40).row();
+        // Add card to root inside a ScrollPane for safety at small resolutions
+        ScrollPane scroll = new ScrollPane(card, skin);
+        scroll.setFadeScrollBars(true);
+        scroll.setScrollingDisabled(true, false);
+        root.add(scroll).width(CARD_WIDTH).maxHeight(Gdx.graphics.getHeight() - 40).center();
 
         stage.addActor(root);
     }
+
+    // ===== Helpers =====
+
+    private NeonToggle lastToggle; // temp reference for buildUI convenience
+
+    private void addSectionHeader(Table card, String text) {
+        card.add(new Actor()).colspan(2).height(8).row(); // top spacer
+        Label header = new Label(text, skin, "section");
+        card.add(header).colspan(2).left().padLeft(32).padBottom(2).row();
+        // Thin divider line
+        Image divider = new Image(skin.getDrawable("divider"));
+        card.add(divider).colspan(2).height(1).growX().padLeft(32).padRight(32).padBottom(8).row();
+    }
+
+    private void addLabeledRow(Table card, String labelText, Actor widget) {
+        Label lbl = new Label(labelText, skin, "default");
+        card.add(lbl).right().padRight(16);
+        if (widget != null) {
+            card.add(widget).left().row();
+        }
+    }
+
+    private void addToggleRow(Table card, String labelText, boolean defaultOn) {
+        Label lbl = new Label(labelText, skin, "default");
+        NeonToggle toggle = new NeonToggle(defaultOn);
+        Table row = new Table();
+        row.add(lbl).expandX().left();
+        row.add(toggle).right().size(50, 26);
+        card.add(row).colspan(2).growX().padLeft(32).padRight(32).padTop(4).padBottom(4).row();
+        lastToggle = toggle;
+    }
+
+    // ===== Actions =====
 
     private void onGenerate() {
         String algo = algoSelect.getSelected().toLowerCase();
         int height = (int) heightSlider.getValue();
         int width = (int) widthSlider.getValue();
-        boolean animated = animatedCheck.isChecked();
+        boolean animated = animatedToggle.isOn();
         String server = serverField.getText().trim();
 
         String baseUrl;
@@ -222,15 +279,15 @@ public class MenuScreen implements Screen {
         }
 
         statusLabel.setText("Generating...");
-        statusLabel.setColor(NeonSkin.CYAN);
+        statusLabel.setColor(NeonSkin.ACCENT);
 
         String diff = diffSelect.getSelected();
-        boolean enableGhosts = ghostsCheck.isChecked();
+        boolean enableGhosts = ghostsToggle.isOn();
 
-        if (raceCheck.isChecked()) {
+        if (raceToggle.isOn()) {
             BotAgent.BotStrategy strategy = BotAgent.BotStrategy.valueOf(botStrategySelect.getSelected());
             game.setScreen(new RaceScreen(game, algo, height, width, baseUrl, diff, strategy, !enableGhosts));
-        } else if (aiAutoplayCheck.isChecked()) {
+        } else if (aiAutoplayToggle.isOn()) {
             BotAgent.BotStrategy pacmanStrat = BotAgent.BotStrategy.valueOf(pacmanStrategySelect.getSelected());
             game.setScreen(new MazeScreen(game, algo, height, width, animated, baseUrl, diff, !enableGhosts, true, pacmanStrat));
         } else {
@@ -251,9 +308,11 @@ public class MenuScreen implements Screen {
         game.setScreen(new ReplayListScreen(game, baseUrl));
     }
 
+    // ===== Screen lifecycle =====
+
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(MazeRenderer.BG_COLOR.r, MazeRenderer.BG_COLOR.g, MazeRenderer.BG_COLOR.b, 1f);
+        Gdx.gl.glClearColor(NeonSkin.BG_DARK.r, NeonSkin.BG_DARK.g, NeonSkin.BG_DARK.b, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         stage.act(delta);
         stage.draw();

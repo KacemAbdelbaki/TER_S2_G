@@ -11,7 +11,7 @@ public class Lwjgl3Launcher {
     public static void main(String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setTitle("Labyrinth Visualizer");
-        config.setWindowedMode(1280, 720);
+        config.setWindowedMode(1920, 1080);
         config.setResizable(true);
         config.useVsync(true);
         config.setForegroundFPS(60);
