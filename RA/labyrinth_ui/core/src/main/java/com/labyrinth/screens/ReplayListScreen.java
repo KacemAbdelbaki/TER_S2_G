@@ -253,8 +253,8 @@ public class ReplayListScreen implements Screen {
                     boolean hadGhosts = root.getBoolean("original_had_ghosts", true);
                     
                     if (!hadGhosts) {
-                        // Show dialog to choose ghosts
-                        showGhostSelectionDialog(replayJson);
+                        // Original run had ghosts disabled: keep replay ghost-free.
+                        game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));
                     } else {
                         // Start replay immediately with original ghosts
                         game.setScreen(new ReplayScreen(game, replayJson, baseUrl, false, null));

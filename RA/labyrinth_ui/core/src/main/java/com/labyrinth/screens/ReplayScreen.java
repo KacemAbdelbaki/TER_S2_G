@@ -107,6 +107,12 @@ public class ReplayScreen implements Screen {
         try {
             recorder = GameRecorder.fromJson(replayJson);
             replayer = new GameReplayer(recorder);
+
+            // If the original game had ghosts disabled, keep replay ghost-free.
+            if (recorder != null && !recorder.hadOriginalGhosts()) {
+                spawnGhosts = false;
+                replayGhosts = null;
+            }
         } catch (Exception e) {
             errorMessage = "Failed to parse replay: " + e.getMessage();
         }
