@@ -15,7 +15,6 @@ RA/labyrinth_ui/.gradle/
 RA/labyrinth_ui/build/
 RA/labyrinth_ui/core/build/
 RA/labyrinth_ui/lwjgl3/build/
-RA/labyrinth_ui/gradle/wrapper/gradle-wrapper.jar
 
 # === IDE ===
 .idea/
