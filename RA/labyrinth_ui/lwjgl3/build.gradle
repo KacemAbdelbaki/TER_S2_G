@@ -1,3 +1,6 @@
+import org.gradle.internal.os.OperatingSystem
+import org.gradle.internal.jvm.Jvm
+
 plugins {
     id 'java'
     id 'application'
@@ -26,7 +29,199 @@ jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     dependsOn configurations.runtimeClasspath
     from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    // Exclude duplicate/conflicting signature files from shaded dependencies.
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
     manifest {
         attributes 'Main-Class': application.mainClass
     }
+}
+
+// ---------------------------------------------------------------------------
+// Native desktop packaging via jpackage (bundled with JDK 14+; we require 17).
+// Produces a self-contained app-image with an embedded JRE so end users do
+// NOT need to install Java, LibGDX, or Gradle. They just double-click the
+// resulting executable / .app.
+//
+// jpackage cannot cross-compile: each native package must be built on the
+// matching host OS (or via a CI matrix).
+// ---------------------------------------------------------------------------
+
+ext {
+    appName        = 'PacmanLabyrinth'
+    appVersion     = '1.0.0'
+    appVendor      = 'TER S2 G'
+    appDescription = 'Labyrinth / Pacman game built with LibGDX'
+    jpackageInputDir  = layout.buildDirectory.dir('jpackage-input')
+    jpackageOutputDir = layout.buildDirectory.dir('jpackage')
+}
+
+/** Locate the `jpackage` binary shipped with the JDK that runs Gradle. */
+def resolveJpackage = {
+    def javaHome = Jvm.current().javaHome
+    def exe = OperatingSystem.current().isWindows() ? 'jpackage.exe' : 'jpackage'
+    def candidate = new File(new File(javaHome, 'bin'), exe)
+    if (!candidate.isFile()) {
+        throw new GradleException(
+            "jpackage not found at ${candidate}. " +
+            "A JDK 17+ that includes jpackage is required to build native packages. " +
+            "Current JAVA_HOME: ${javaHome}")
+    }
+    return candidate.absolutePath
+}
+
+/** Optional icon path: returns null if no icon for the given OS exists yet. */
+def resolveIcon = { String filename ->
+    def f = rootProject.file("assets/icons/${filename}")
+    return f.isFile() ? f.absolutePath : null
+}
+
+// Stage the fat JAR into a clean input directory (jpackage requires --input
+// to point at a directory containing only the artifacts to bundle).
+tasks.register('prepareJpackageInput', Copy) {
+    group = 'distribution'
+    description = 'Copies the fat JAR into the jpackage input staging directory.'
+    dependsOn tasks.named('jar')
+    from(tasks.named('jar').map { it.archiveFile })
+    into(jpackageInputDir)
+    doFirst {
+        // Ensure no leftover artifacts from previous runs leak into --input.
+        def dir = jpackageInputDir.get().asFile
+        if (dir.isDirectory()) {
+            dir.listFiles()?.each { it.delete() }
+        }
+    }
+}
+
+/**
+ * Build a list of jpackage CLI args common to every platform task.
+ * `type` is one of: app-image, exe, msi, deb, rpm, dmg, pkg.
+ * `iconPath` may be null.
+ */
+def buildJpackageArgs = { String type, String iconPath ->
+    def args = [
+        '--type', type,
+        '--input', jpackageInputDir.get().asFile.absolutePath,
+        '--dest', jpackageOutputDir.get().asFile.absolutePath,
+        '--name', appName,
+        '--app-version', appVersion,
+        '--vendor', appVendor,
+        '--description', appDescription,
+        '--main-jar', "labyrinth-visualizer.jar",
+        '--main-class', application.mainClass.get(),
+        '--java-options', '-Xmx1024m'
+    ]
+    if (iconPath != null) {
+        args += ['--icon', iconPath]
+    }
+    return args
+}
+
+/** Wipe the previous output for this app so jpackage doesn't refuse to run. */
+def cleanJpackageOutputFor = { String name ->
+    def out = jpackageOutputDir.get().asFile
+    if (!out.isDirectory()) return
+    out.listFiles()?.each { f ->
+        if (f.name == name || f.name.startsWith("${name}.") || f.name.startsWith("${name}-")) {
+            f.deleteDir()
+        }
+    }
+}
+
+tasks.register('packageWindows', Exec) {
+    group = 'distribution'
+    description = 'Builds a self-contained Windows app-image (double-click .exe to launch).'
+    dependsOn tasks.named('prepareJpackageInput')
+
+    onlyIf {
+        if (!OperatingSystem.current().isWindows()) {
+            logger.warn("[packageWindows] Skipped: must be run on Windows. " +
+                "jpackage cannot cross-compile native Windows packages.")
+            return false
+        }
+        return true
+    }
+
+    doFirst {
+        cleanJpackageOutputFor(appName)
+        def icon = resolveIcon('windows.ico')
+        // Default to portable app-image (no WiX dependency). To produce an
+        // installer, change 'app-image' to 'exe' or 'msi' (requires WiX on PATH).
+        commandLine([resolveJpackage()] + buildJpackageArgs('app-image', icon))
+    }
+}
+
+tasks.register('packageLinux', Exec) {
+    group = 'distribution'
+    description = 'Builds a self-contained Linux app-image (run bin/PacmanLabyrinth to launch).'
+    dependsOn tasks.named('prepareJpackageInput')
+
+    onlyIf {
+        if (!OperatingSystem.current().isLinux()) {
+            logger.warn("[packageLinux] Skipped: must be run on Linux. " +
+                "jpackage cannot cross-compile native Linux packages.")
+            return false
+        }
+        return true
+    }
+
+    doFirst {
+        cleanJpackageOutputFor(appName.toLowerCase())
+        cleanJpackageOutputFor(appName)
+        def icon = resolveIcon('linux.png')
+        // Default to portable app-image (no dpkg/rpm tooling required). To
+        // build a .deb or .rpm, change 'app-image' to 'deb' or 'rpm'
+        // (requires fakeroot+dpkg or rpm-build on PATH).
+        commandLine([resolveJpackage()] + buildJpackageArgs('app-image', icon))
+    }
+}
+
+tasks.register('packageMac', Exec) {
+    group = 'distribution'
+    description = 'Builds a self-contained macOS .app bundle (double-click to launch).'
+    dependsOn tasks.named('prepareJpackageInput')
+
+    onlyIf {
+        if (!OperatingSystem.current().isMacOsX()) {
+            logger.warn("[packageMac] Skipped: must be run on macOS. " +
+                "jpackage cannot cross-compile native macOS packages.")
+            return false
+        }
+        return true
+    }
+
+    doFirst {
+        cleanJpackageOutputFor("${appName}.app")
+        cleanJpackageOutputFor(appName)
+        def icon = resolveIcon('mac.icns')
+        // Default to portable .app bundle. To build a signed .dmg installer,
+        // change 'app-image' to 'dmg' (requires Xcode command-line tools).
+        commandLine([resolveJpackage()] + buildJpackageArgs('app-image', icon))
+    }
+
+    doLast {
+        // Ad-hoc sign the produced .app so it launches on end-user Macs
+        // without the "is damaged and can't be opened" Gatekeeper error.
+        // This is NOT a real Developer ID signature (which would require a
+        // paid Apple cert) - users may still see an "unidentified developer"
+        // warning the first time, and may need to right-click > Open.
+        def appBundle = new File(jpackageOutputDir.get().asFile, "${appName}.app")
+        if (appBundle.isDirectory()) {
+            exec {
+                commandLine 'codesign', '--force', '--deep', '--sign', '-', appBundle.absolutePath
+            }
+        } else {
+            logger.warn("[packageMac] Skipping ad-hoc codesign: ${appBundle} not found.")
+        }
+    }
+}
+
+// Convenience: build the matching package for the current host OS.
+tasks.register('packageNative') {
+    group = 'distribution'
+    description = 'Builds the native package for the current host OS.'
+    def os = OperatingSystem.current()
+    if (os.isWindows())      dependsOn tasks.named('packageWindows')
+    else if (os.isLinux())   dependsOn tasks.named('packageLinux')
+    else if (os.isMacOsX())  dependsOn tasks.named('packageMac')
+    else throw new GradleException("Unsupported host OS for jpackage: ${os}")
 }

@@ -4,6 +4,34 @@ A professional Pac-Man-themed graphical interface for generating, visualizing an
 
 ---
 
+## Download (no Java required)
+
+Pre-built native packages are produced by GitHub Actions on every tagged
+release. End users do **not** need Java, LibGDX, or Gradle installed.
+
+1. Open the [latest GitHub Release](https://github.com/KacemAbdelbaki/TER_S2_G/releases/latest).
+2. Download the zip for your operating system:
+   - `PacmanLabyrinth-windows.zip`
+   - `PacmanLabyrinth-linux.zip`
+   - `PacmanLabyrinth-macos.zip`
+3. Extract the archive anywhere (e.g. Desktop).
+4. Launch:
+
+   | OS      | Command / action |
+   |---------|------------------|
+   | Windows | Double-click `PacmanLabyrinth\PacmanLabyrinth.exe` |
+   | Linux   | Run `./PacmanLabyrinth/bin/PacmanLabyrinth` (or double-click in your file manager) |
+   | macOS   | Double-click `PacmanLabyrinth.app`. If macOS still blocks it, right-click → **Open** the first time, or run `xattr -dr com.apple.quarantine PacmanLabyrinth.app` once. |
+
+> The macOS bundle is **ad-hoc signed** (not Developer-ID signed), so first-launch
+> Gatekeeper may show "unidentified developer". This is expected for an
+> unsigned student-project build.
+
+The game also requires the Flask backend running at `localhost:5000` for
+maze generation - see [Python Backend](#python-backend-flask-api) below.
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -462,6 +490,108 @@ java -jar lwjgl3/build/libs/labyrinth-visualizer.jar
 6. If animated: watch the maze being carved, use Pause/Skip/Speed controls
 7. Once generation completes, Pac-Man appears - navigate with WASD/arrows
 8. Eat all dots to win!
+
+---
+
+## Distributing the Game (Native Desktop Packages)
+
+End users should not have to install Java, LibGDX, or Gradle. The `lwjgl3`
+module ships Gradle tasks that use **`jpackage`** (bundled with JDK 14+) to
+produce a self-contained app-image with an embedded JRE. The user just
+double-clicks the executable / `.app`.
+
+### Build prerequisites (developer machine only)
+
+- JDK **17 or newer** that includes `jpackage` (Temurin, Oracle, Liberica, or the OS package).
+- That's it. No global Gradle install required — use the included `./gradlew` wrapper.
+
+### Limitation: no cross-compilation
+
+`jpackage` can only produce a native package for the OS that runs it. To
+ship all three platforms you need three machines (or a CI matrix with
+`windows-latest`, `ubuntu-latest`, `macos-latest`).
+
+### Commands
+
+Run from `RA/labyrinth_ui/`:
+
+```bash
+# On Windows host
+./gradlew :lwjgl3:packageWindows
+
+# On Linux host
+./gradlew :lwjgl3:packageLinux
+
+# On macOS host
+./gradlew :lwjgl3:packageMac
+
+# Convenience: build whichever package matches the current host OS
+./gradlew :lwjgl3:packageNative
+```
+
+Tasks invoked on the wrong host OS are skipped with a warning rather than
+failing the build.
+
+### Output locations
+
+All artifacts land under `RA/labyrinth_ui/lwjgl3/build/jpackage/`:
+
+| Platform | Path | How the user launches it |
+|----------|------|--------------------------|
+| Windows  | `PacmanLabyrinth/PacmanLabyrinth.exe`        | Double-click the `.exe` |
+| Linux    | `PacmanLabyrinth/bin/PacmanLabyrinth`        | Run the binary (or zip the folder and ship it) |
+| macOS    | `PacmanLabyrinth.app`                        | Double-click the `.app` |
+
+The intermediate fat JAR is at
+`RA/labyrinth_ui/lwjgl3/build/libs/labyrinth-visualizer.jar` (runnable with
+`java -jar`, but end users do not need it — the packaged app embeds its
+own JRE under `PacmanLabyrinth/lib/runtime/`).
+
+### Optional: native installers instead of app-images
+
+The default `--type app-image` keeps the build dependency-free. To produce
+real installers, edit the relevant task in
+[lwjgl3/build.gradle](lwjgl3/build.gradle) and replace `'app-image'` with:
+
+- `'exe'` or `'msi'` (Windows) — requires the [WiX Toolset](https://wixtoolset.org/) on `PATH`.
+- `'deb'` or `'rpm'` (Linux)   — requires `fakeroot`+`dpkg`, or `rpm-build`.
+- `'dmg'` or `'pkg'` (macOS)   — requires Xcode command-line tools.
+
+### Optional: app icons
+
+Drop the following files into [assets/icons/](assets/icons/) and they
+will be picked up automatically on the next package build:
+
+- `windows.ico` (Windows)
+- `linux.png`   (Linux, 256×256 recommended)
+- `mac.icns`    (macOS)
+
+Without them, jpackage uses the default JDK icon.
+
+### Publishing a release (CI)
+
+A GitHub Actions workflow at
+[.github/workflows/release.yml](../../.github/workflows/release.yml)
+builds all three native packages in parallel on `windows-latest`,
+`ubuntu-latest`, and `macos-latest`, then publishes them to a GitHub
+Release. **You don't need three machines** - just push a tag from any
+OS and CI does the rest.
+
+To cut a release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This triggers the workflow; ~5-10 minutes later the
+[Releases page](https://github.com/KacemAbdelbaki/TER_S2_G/releases)
+contains three downloadable zips with auto-generated changelog notes.
+
+To test the workflow without publishing, go to the **Actions** tab on
+GitHub, pick "Build native desktop packages", and click **Run workflow**
+(`workflow_dispatch`). This produces zips as workflow artifacts (not a
+Release) for 14 days.
 
 ---
 
