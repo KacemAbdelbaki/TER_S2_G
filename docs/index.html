@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PACMAN — Demo Videos</title>
+    <meta name="description"
+        content="Demo videos showcasing Pac-Man AI agents with A* and Greedy pathfinding in procedurally generated mazes.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a1a;
+            --bg-card: #0d0d2b;
+            --bg-card-hover: #121240;
+            --border-subtle: rgba(33, 33, 222, 0.15);
+            --border-accent: rgba(255, 255, 0, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: #8888cc;
+            --text-muted: #5555aa;
+            --pacman-yellow: #FFD700;
+            --maze-blue: #2121DE;
+            --ghost-red: #FF0000;
+            --ghost-pink: #FFB8FF;
+            --ghost-cyan: #00FFFF;
+            --ghost-orange: #FFB852;
+            --pellet-white: #FFB897;
+            --power-pellet: #FFB897;
+            --gradient-hero: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF6600 100%);
+            --gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(33, 33, 222, 0.2) 0%, transparent 60%);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
+            --shadow-card-hover: 0 8px 40px rgba(255, 215, 0, 0.1);
+            --radius-lg: 16px;
+            --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ===== Maze Grid Background ===== */
+        .bg-glow {
+            position: fixed;
+            inset: 0;
+            background: var(--gradient-glow);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(33, 33, 222, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(33, 33, 222, 0.08) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== Floating Pac-Man & Ghosts ===== */
+        .pacman-scene {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .floating-pacman {
+            position: absolute;
+            top: 18%;
+            font-size: 28px;
+            animation: movePacman 12s linear infinite;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.5));
+        }
+
+        .floating-ghost {
+            position: absolute;
+            font-size: 22px;
+            animation: moveGhost 14s linear infinite;
+            filter: drop-shadow(0 0 6px rgba(255, 0, 0, 0.3));
+        }
+
+        .floating-ghost:nth-child(3) {
+            top: 25%;
+            animation-delay: -3s;
+            animation-duration: 16s;
+        }
+
+        .floating-ghost:nth-child(4) {
+            top: 65%;
+            animation-delay: -7s;
+            animation-duration: 18s;
+        }
+
+        .floating-ghost:nth-child(5) {
+            top: 80%;
+            animation-delay: -11s;
+            animation-duration: 13s;
+        }
+
+        @keyframes movePacman {
+            0% {
+                left: -60px;
+            }
+
+            100% {
+                left: calc(100% + 60px);
+            }
+        }
+
+        @keyframes moveGhost {
+            0% {
+                left: -50px;
+            }
+
+            100% {
+                left: calc(100% + 50px);
+            }
+        }
+
+        /* ===== Pellet Dots ===== */
+        .pellet-row {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.15;
+        }
+
+        .pellet {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--pellet-white);
+        }
+
+        .pellet.power {
+            width: 14px;
+            height: 14px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        /* ===== Navigation ===== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 16px 32px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 2px solid var(--maze-blue);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .nav-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--pacman-yellow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-logo::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 50%;
+            background: var(--bg-primary);
+            transform-origin: bottom left;
+            animation: chomp 0.4s ease-in-out infinite alternate;
+        }
+
+        @keyframes chomp {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(35deg);
+            }
+        }
+
+        .nav-title {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: var(--pacman-yellow);
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all var(--transition-smooth);
+        }
+
+        .nav-links a:hover {
+            color: var(--pacman-yellow);
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .nav-links a.active {
+            color: var(--pacman-yellow);
+            background: rgba(255, 215, 0, 0.12);
+        }
+
+        /* ===== Hero ===== */
+        .hero {
+            position: relative;
+            z-index: 1;
+            padding: 160px 32px 80px;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(33, 33, 222, 0.15);
+            border: 1px solid rgba(33, 33, 222, 0.3);
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--ghost-cyan);
+            margin-bottom: 24px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .hero-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--pacman-yellow);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .hero h1 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(28px, 5vw, 48px);
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            line-height: 1.3;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto 32px;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        /* Ghost characters row */
+        .ghost-row {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease-out 0.25s both;
+        }
+
+        .ghost-char {
+            font-size: 36px;
+            transition: transform 0.3s ease;
+            cursor: default;
+        }
+
+        .ghost-char:hover {
+            transform: scale(1.3) rotate(-10deg);
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat .value {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px;
+            color: var(--pacman-yellow);
+        }
+
+        .hero-stat .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-top: 6px;
+        }
+
+        /* ===== Section Headers ===== */
+        .section-header {
+            padding: 0 32px;
+            max-width: 1200px;
+            margin: 0 auto 32px;
+        }
+
+        .section-header h2 {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 16px;
+            color: var(--pacman-yellow);
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        /* ===== Video Grid ===== */
+        .video-grid {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 32px 80px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 24px;
+        }
+
+        .video-card {
+            background: var(--bg-card);
+            border: 2px solid var(--maze-blue);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: all var(--transition-smooth);
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .video-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .video-card:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .video-card:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .video-card:nth-child(4) {
+            animation-delay: 0.25s;
+        }
+
+        .video-card:nth-child(5) {
+            animation-delay: 0.3s;
+        }
+
+        .video-card:nth-child(6) {
+            animation-delay: 0.35s;
+        }
+
+        .video-card:hover {
+            border-color: var(--pacman-yellow);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.15), 0 8px 40px rgba(0, 0, 0, 0.4);
+            transform: translateY(-4px);
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .video-info {
+            padding: 20px;
+        }
+
+        .video-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--pacman-yellow);
+        }
+
+        .video-info p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .video-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 6px;
+        }
+
+        .tag-indigo {
+            background: rgba(33, 33, 222, 0.2);
+            color: #7777ff;
+        }
+
+        .tag-cyan {
+            background: rgba(0, 255, 255, 0.1);
+            color: var(--ghost-cyan);
+        }
+
+        .tag-pink {
+            background: rgba(255, 184, 255, 0.12);
+            color: var(--ghost-pink);
+        }
+
+        .tag-violet {
+            background: rgba(139, 92, 246, 0.12);
+            color: #a78bfa;
+        }
+
+        .tag-red {
+            background: rgba(255, 0, 0, 0.12);
+            color: var(--ghost-red);
+        }
+
+        .tag-orange {
+            background: rgba(255, 184, 82, 0.12);
+            color: var(--ghost-orange);
+        }
+
+        .tag-yellow {
+            background: rgba(255, 215, 0, 0.12);
+            color: var(--pacman-yellow);
+        }
+
+        /* ===== Empty State ===== */
+        .empty-state {
+            position: relative;
+            z-index: 1;
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 60px 32px 120px;
+            text-align: center;
+        }
+
+        .empty-state .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            border-radius: 50%;
+            background: rgba(255, 215, 0, 0.08);
+            border: 2px solid rgba(255, 215, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 24px;
+        }
+
+        .empty-state code {
+            display: inline-block;
+            background: rgba(33, 33, 222, 0.1);
+            border: 1px solid var(--maze-blue);
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--ghost-cyan);
+        }
+
+        /* ===== Footer ===== */
+        .footer {
+            position: relative;
+            z-index: 1;
+            padding: 32px;
+            border-top: 2px solid var(--maze-blue);
+            text-align: center;
+        }
+
+        .footer p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .footer a {
+            color: var(--pacman-yellow);
+            text-decoration: none;
+            transition: color var(--transition-smooth);
+        }
+
+        .footer a:hover {
+            color: var(--ghost-orange);
+        }
+
+        .footer .footer-ghosts {
+            margin-top: 8px;
+            font-size: 18px;
+            letter-spacing: 8px;
+        }
+
+        /* ===== Info Box ===== */
+        .upload-info {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto 60px;
+            padding: 0 32px;
+        }
+
+        .info-box {
+            background: var(--bg-card);
+            border: 2px solid var(--maze-blue);
+            border-radius: var(--radius-lg);
+            padding: 24px 28px;
+        }
+
+        .info-box h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--pacman-yellow);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box ol {
+            padding-left: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .info-box ol li {
+            margin-bottom: 6px;
+        }
+
+        .info-box code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            background: rgba(33, 33, 222, 0.15);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--ghost-cyan);
+        }
+
+        /* ===== Animations ===== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(1.2);
+            }
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 12px 20px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 120px 20px 60px;
+            }
+
+            .hero h1 {
+                font-size: 22px;
+            }
+
+            .hero-stats {
+                gap: 24px;
+            }
+
+            .ghost-row {
+                gap: 16px;
+            }
+
+            .ghost-char {
+                font-size: 28px;
+            }
+
+            .video-grid {
+                grid-template-columns: 1fr;
+                padding: 0 20px 60px;
+            }
+
+            .section-header,
+            .upload-info {
+                padding: 0 20px;
+            }
+
+            .pacman-scene {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-grid"></div>
+
+    <!-- Floating characters -->
+    <div class="pacman-scene">
+        <div class="floating-pacman">🟡</div>
+        <div class="floating-ghost" style="top:25%">👻</div>
+        <div class="floating-ghost" style="top:65%">👻</div>
+        <div class="floating-ghost" style="top:80%">👻</div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="nav-brand">
+            <div class="nav-logo"></div>
+            <span class="nav-title">PACMAN</span>
+        </a>
+        <div class="nav-links">
+            <a href="#demos" class="active">Demos</a>
+            <a href="https://github.com/KacemAbdelbaki/TER_S2_G" target="_blank">GitHub ↗</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-badge">
+            <span class="dot"></span>
+            TER — Research Project
+        </div>
+        <h1>
+            <span class="gradient-text">PACMAN</span><br>
+            Demo Videos
+        </h1>
+        <!-- <p>
+            Exploring ghost pathfinding algorithms in procedurally generated mazes — A* vs Greedy AI in action.
+        </p> -->
+
+        <div class="ghost-row">
+            <span class="ghost-char" title="Blinky">👾</span>
+            <span class="ghost-char" title="Pac-Man">🟡</span>
+            <span class="ghost-char" title="Pinky">👻</span>
+            <!-- <span class="ghost-char" title="Inky">👾</span>
+            <span class="ghost-char" title="Clyde">👻</span> -->
+        </div>
+
+        <div class="hero-stats" id="stats">
+            <div class="hero-stat">
+                <div class="value" id="video-count">—</div>
+                <div class="label">Videos</div>
+            </div>
+            <!-- <div class="hero-stat">
+                <div class="value">A*</div>
+                <div class="label">Pathfinding</div>
+            </div> -->
+            <!-- <div class="hero-stat">
+                <div class="value">4</div>
+                <div class="label">Ghosts</div>
+            </div> -->
+        </div>
+    </section>
+
+    <!-- Videos Section -->
+    <div class="section-header" id="demos">
+        <h2>DEMO RECORDINGS</h2>
+        <p>Watch the AI agents navigate through procedurally generated mazes</p>
+    </div>
+
+    <div class="video-grid" id="video-grid"></div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state" style="display:none;">
+        <div class="icon">👾</div>
+        <h3>No videos yet</h3>
+        <p>Drop your <code>.mp4</code> or <code>.webm</code> files in the <code>docs/videos/</code> folder and update
+            the config below.</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>
+            Built by <strong>Abou Orm Daniel</strong>, <strong>Kabbat Joe</strong> &amp; <strong>Abdelbaki
+                Kacem</strong>
+            &nbsp;·&nbsp;
+            <a href="https://github.com/KacemAbdelbaki/TER_S2_G">View Source</a>
+        </p>
+        <div class="footer-ghosts">👾🟡👻</div>
+    </footer>
+
+    <script>
+        // ============================================================
+        //  VIDEO CONFIGURATION
+        //  Add your videos here! Each entry is an object with:
+        //    - file: filename inside docs/videos/
+        //    - title: display title
+        //    - description: short description
+        //    - tags: array of { label, color } where color is one of:
+        //            "indigo", "cyan", "pink", "violet", "red", "orange", "yellow"
+        // ============================================================
+        const VIDEOS = [
+            {
+                file: "Quick AI Game.mp4",
+                title: "Quick AI Game",
+                description: "A fast-paced automated game with the AI bot navigating the maze autonomously.",
+                tags: [
+                    { label: "AI Bot", color: "yellow" },
+                    { label: "Autoplay", color: "violet" },
+                ]
+            },
+            {
+                file: "Race Game Against AI.mp4",
+                title: "Race Game Against AI",
+                description: "Competitive race mode — player vs AI bot racing through the labyrinth.",
+                tags: [
+                    { label: "Race Mode", color: "red" },
+                    { label: "PvE", color: "orange" },
+                ]
+            },
+            {
+                file: "Replay System.mp4",
+                title: "Replay System",
+                description: "Saved game replay feature — rewatch completed runs with full playback controls.",
+                tags: [
+                    { label: "Replay", color: "cyan" },
+                    { label: "Feature", color: "pink" },
+                ]
+            },
+        ];
+
+        // ============================================================
+        //  Renderer
+        // ============================================================
+        const grid = document.getElementById('video-grid');
+        const emptyState = document.getElementById('empty-state');
+        const videoCount = document.getElementById('video-count');
+
+        function renderVideos() {
+            if (VIDEOS.length === 0) {
+                grid.style.display = 'none';
+                emptyState.style.display = 'block';
+                videoCount.textContent = '0';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            grid.style.display = 'grid';
+            videoCount.textContent = VIDEOS.length;
+
+            grid.innerHTML = VIDEOS.map((v, i) => `
+                <div class="video-card" style="animation-delay: ${0.1 + i * 0.05}s">
+                    <div class="video-wrapper">
+                        <video controls preload="metadata" playsinline>
+                            <source src="videos/${v.file}" type="video/${v.file.split('.').pop()}">
+                            Your browser does not support video playback.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <h3>${v.title}</h3>
+                        <p>${v.description}</p>
+                        <div class="video-tags">
+                            ${v.tags.map(t => `<span class="tag tag-${t.color}">${t.label}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        renderVideos();
+    </script>
+</body>
+
+</html>
