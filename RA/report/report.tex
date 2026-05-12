@@ -1,0 +1,735 @@
+% =============================================================
+% TER -- Pacman Labyrinth: Mini Report on AI Management
+% Self-contained LaTeX file. Compile with:  pdflatex report.tex
+% =============================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Encoding & language ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ---------- Layout ----------
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{multicol}
+
+% ---------- Visual / utility ----------
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+% ---------- Colours (Pac-Man inspired) ----------
+\definecolor{pmblue}{RGB}{33,33,222}
+\definecolor{pmyellow}{RGB}{255,204,0}
+\definecolor{pmpink}{RGB}{255,184,222}
+\definecolor{pmcyan}{RGB}{0,200,222}
+\definecolor{pmorange}{RGB}{255,140,0}
+\definecolor{pmred}{RGB}{222,40,40}
+\definecolor{pmgreen}{RGB}{40,180,90}
+\definecolor{darkbg}{RGB}{20,20,40}
+\definecolor{softgrey}{RGB}{245,245,250}
+\definecolor{rulegrey}{RGB}{200,200,210}
+
+% ---------- Hyperlinks ----------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=pmblue,
+    urlcolor=pmblue,
+    citecolor=pmblue
+}
+
+% ---------- Section style ----------
+\titleformat{\section}
+  {\color{pmblue}\Large\bfseries\sffamily}
+  {\thesection}{0.6em}{}
+  [\vspace{-0.3em}{\color{pmblue}\rule{\linewidth}{0.6pt}}]
+\titleformat{\subsection}
+  {\color{darkbg}\large\bfseries\sffamily}
+  {\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\color{darkbg}\normalsize\bfseries\sffamily}
+  {\thesubsubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{1.0em}{0.4em}
+\titlespacing*{\subsection}{0pt}{0.7em}{0.2em}
+\titlespacing*{\subsubsection}{0pt}{0.5em}{0.15em}
+
+% ---------- Header / footer ----------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\color{rulegrey}\hrule height 0.4pt}
+\fancyhead[L]{\sffamily\small\color{pmblue}TER -- Pacman Labyrinth}
+\fancyhead[R]{\sffamily\small\color{pmblue}AI Management Report}
+\fancyfoot[C]{\sffamily\small\thepage}
+
+% ---------- Code listings ----------
+\lstdefinestyle{mini}{
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{pmblue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{pmorange},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  backgroundcolor=\color{softgrey},
+  frame=single,
+  rulecolor=\color{rulegrey},
+  framesep=4pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+}
+\lstset{style=mini}
+
+% ---------- Custom boxes ----------
+\newtcolorbox{infobox}[1][]{
+  enhanced, breakable,
+  colback=pmblue!5, colframe=pmblue,
+  arc=2pt, boxrule=0.6pt,
+  left=8pt,right=8pt,top=4pt,bottom=4pt,
+  fonttitle=\bfseries\sffamily\color{white},
+  title=#1
+}
+\newtcolorbox{ghostbox}[2][]{
+  enhanced, breakable,
+  colback=#2!8, colframe=#2,
+  arc=2pt, boxrule=0.6pt,
+  left=6pt,right=6pt,top=3pt,bottom=3pt,
+  fonttitle=\bfseries\sffamily\color{white},
+  title=#1
+}
+
+% =============================================================
+\begin{document}
+
+% ---------- Cover ----------
+\begin{center}
+{\color{pmblue}\rule{\linewidth}{1.2pt}}\\[0.4em]
+{\sffamily\Huge\bfseries\color{darkbg} Pacman Labyrinth}\\[0.3em]
+{\sffamily\Large\color{pmblue} A Mini Report on AI Management}\\[0.4em]
+{\color{pmblue}\rule{\linewidth}{0.6pt}}\\[1.2em]
+
+\begin{tabular}{rl}
+\textbf{Project} & TER -- Master 1 IA \\
+\textbf{Group}   & TER\_S2\_G \\
+\textbf{Members} & Daniel Abou Orm \\
+                 & Joe Kabbat \\
+                 & Kacem Abdelbaki \\
+\textbf{Date}    & May 2026 \\
+\end{tabular}
+
+\vspace{0.8em}
+\begin{infobox}[Scope]
+\textit{This document explains how artificial intelligence is handled in
+our Pacman--Labyrinth project: ghost behaviour, the autonomous Pac-Man
+bot, the difficulty system, the supporting layers (maze generation,
+rendering, UI, networking, replay), and a final reflection on our use of
+AI \emph{tools} (Copilot, ChatGPT) during development.}
+\end{infobox}
+\end{center}
+
+% ---------- 1 ----------
+\section{Project Overview}
+
+The project is a complete Pacman--Labyrinth platform split into two
+cooperating components communicating exclusively through a REST API.
+
+\begin{itemize}[leftmargin=1.3em,itemsep=2pt]
+  \item \textbf{Backend (\texttt{labyrinth\_gen}, Python / Flask).}
+        Generates symmetric mazes using four algorithms
+        (\textsc{Dfs}, \textsc{Kruskal}, \textsc{Prim}, \textsc{Tetris}),
+        persists them in MongoDB, and exposes a REST API documented with
+        Swagger. Containerised with Docker and deployed on Render.
+  \item \textbf{Frontend (\texttt{labyrinth\_ui}, Java / LibGDX).}
+        Fetches a maze from the API, renders it in a Pac-Man style, and
+        runs the gameplay: human or bot Pac-Man, four classic ghosts,
+        dots, power pellets, teleporters, and a replay system.
+\end{itemize}
+
+\begin{infobox}[Why this matters for the AI report]
+The pipeline forces every AI decision to operate on a \emph{procedurally
+generated} grid that is never the same twice. Ghost targeting and the
+Pac-Man bot must therefore reason on the fly, with no hand-tuned map.
+\end{infobox}
+
+% ---------- 2 ----------
+\section{Maze Generation: Foundation of the AI World}
+
+Before any agent can think, the world must exist. The four generators
+share a common pipeline (\texttt{common.py}):
+
+\begin{center}\small
+\textit{init grid} $\rightarrow$ \textit{carve} $\rightarrow$
+\textit{add cycles} $\rightarrow$ \textit{mirror for symmetry} $\rightarrow$
+\textit{insert middle column} $\rightarrow$ \textit{place teleporters}
+$\rightarrow$ \textit{seal borders}.
+\end{center}
+
+The output is a serialisable \texttt{Cell} grid. Each cell carries four
+boolean walls (\texttt{[Up, Right, Down, Left]}), an \texttt{isGhost}
+flag for the ghost room, and an \texttt{isTP} flag (with a target
+\texttt{TPCell}) for teleport pairs. This compact representation is what
+both the Pac-Man bot and the ghosts will read at every tick.
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{l X}
+\toprule
+\textbf{Algorithm} & \textbf{Behaviour and impact on AI} \\
+\midrule
+\textsc{Dfs}     & Recursive backtracking. Long winding corridors, few
+                   junctions. Ghosts feel predictable and the bot's path is
+                   mostly linear. \\
+\textsc{Kruskal} & Spanning tree via Union-Find on edges. Uniform branching
+                   with many short choices, harder for a one-step greedy
+                   bot. \\
+\textsc{Prim}    & Frontier-based growth. Compact ``bushy'' areas;
+                   ghosts converge faster on Pac-Man. \\
+\textsc{Tetris}  & Active-cell growth with branching bias ($p\!=\!0.85$).
+                   Produces large rooms and bottlenecks; the most playable
+                   and balanced for both humans and bots. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Symmetry, cycles and teleporters}
+
+Three post-processing passes shape the AI experience as much as the
+underlying algorithm:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{Mirroring} (\texttt{mirror\_map}) doubles the carved
+        half-grid into a left/right symmetric maze. Symmetry matters: it
+        lets us place the ghost room and the four scatter corners
+        coherently regardless of the random carving.
+  \item \textbf{Cycles} (\texttt{add\_cycles(p)}) randomly knock down
+        walls so the graph is no longer a tree. Without cycles, ghosts
+        would always have a unique path to Pac-Man (chase becomes
+        trivial) and the bot would have no escape route.
+  \item \textbf{Teleporters} (\texttt{add\_TP\_Points}) add two pairs of
+        portal cells that introduce \emph{non-grid} edges in the maze
+        graph. Both ghosts and the bot must explicitly recognise these
+        edges; we will see in \S4 that they were the source of an
+        oscillation bug in the bot.
+\end{itemize}
+
+A small \texttt{maze\_benchmarks} routine counts cycles and hallway
+lengths so we could tune \texttt{p} empirically and confirm that
+\textsc{Tetris} produces the highest playability score.
+
+% ---------- 3 ----------
+\section{Pacman AI: Ghost Behaviour}
+
+Ghosts are the central AI artefact of the project. We follow the
+\textbf{classic Pac-Man targeting model} \cite{pacmandossier} and extend
+it with an instrumented \emph{A*} mode for academic comparison.
+
+\subsection{Architecture and shared mechanics}
+
+All ghosts inherit from an abstract \texttt{Ghost} class which
+implements the shared movement contract. The contract is intentionally
+rigid so each subclass only has to specify \emph{where to aim}, not
+\emph{how to move}.
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{Four modes:} \texttt{CHASE} (hunt Pac-Man),
+        \texttt{SCATTER} (retreat to a corner),
+        \texttt{FRIGHTENED} (random walk after Pac-Man eats a power
+        pellet) and \texttt{EATEN} (return to the ghost room as eyes).
+  \item \textbf{Discrete grid + smooth visuals.} Logical moves happen on
+        a fixed grid every \texttt{moveInterval} seconds (default
+        $0.22\,$s). Visual position is driven by a per-frame
+        \texttt{MathUtils.lerp} between the current and the target tile
+        so the AI's discrete tick is hidden.
+  \item \textbf{Forbidden reverse.} A ghost never turns
+        180\textdegree\ unless it is the only legal move. This single
+        rule, lifted from the original arcade, is what creates most of
+        the emergent ``personality''.
+  \item \textbf{Tie-break priority} \(\textsc{Up} > \textsc{Left} >
+        \textsc{Down} > \textsc{Right}\), preserving the famous arcade
+        quirk that lets advanced players read ghost behaviour.
+  \item \textbf{Two difficulty modes:} \texttt{CLASSIC} (greedy
+        Euclidean step) and \texttt{A\_STAR} (true shortest-path
+        planning). Both share the rest of the contract.
+\end{itemize}
+
+The mode timeline is driven from the screen by
+\texttt{MazeScreen.MODE\_DURATIONS = \{7, 20, 7, 20, 5, 20, 5, $\infty$\}}
+seconds, alternating SCATTER and CHASE -- the original 1980 Namco
+schedule. \texttt{FRIGHTENED} is a temporary overlay (6 seconds) on top
+of that timeline, triggered when the player eats a power pellet.
+
+\subsubsection{Coordinate conventions}
+
+A subtle but recurrent source of bugs was the dual coordinate convention
+between cells and movement: cell walls are indexed
+\texttt{[Up, Right, Down, Left]} but agent directions are indexed
+\(\texttt{Right}{=}0,\,\texttt{Up}{=}1,\,\texttt{Left}{=}2,\,
+\texttt{Down}{=}3\). The \texttt{Ghost} class therefore keeps an
+explicit mapping table \texttt{DIR\_TO\_WALL[]\,=\,\{1,0,3,2\}} so that
+direction-to-wall lookups stay correct even after refactoring.
+
+\subsection{The four personalities}
+
+\begin{ghostbox}[Blinky -- The Chaser]{pmred}
+Targets Pac-Man's exact tile in \texttt{CHASE} mode. Scatter corner:
+top-right. Simple, relentless; sets the baseline pressure and serves as
+a reference position for Inky's vector trick.
+\end{ghostbox}
+
+\begin{ghostbox}[Pinky -- The Ambusher]{pmpink}
+Aims four tiles \emph{ahead} of Pac-Man in his current direction.
+Encourages the player to make sharp turns to break the trap. Scatter
+corner: top-left.
+\end{ghostbox}
+
+\begin{ghostbox}[Inky -- The Unpredictable]{pmcyan}
+Computes a vector from Blinky to a point two tiles ahead of Pac-Man,
+then \emph{doubles} it. Inky's target therefore depends on
+\emph{another ghost's position}, producing the cooperative pincer
+behaviour the original arcade is famous for. Scatter corner:
+bottom-right.
+\end{ghostbox}
+
+\begin{ghostbox}[Clyde -- The Shy One]{pmorange}
+Chases Pac-Man only when he is more than 8 tiles away (Euclidean);
+otherwise retreats to his scatter corner. Adds a non-monotonic, almost
+timid agent that prevents the group dynamics from collapsing into
+``four red Blinkies''. Scatter corner: bottom-left.
+\end{ghostbox}
+
+\subsection{The greedy heuristic (\texttt{CLASSIC} mode)}
+
+In \texttt{CLASSIC} mode the ghost performs a one-step lookahead.
+Among the (up to three) non-reverse neighbours that are not separated by
+a wall, it picks the one minimising the \emph{squared Euclidean
+distance} to its target tile, with ties broken by the priority listed
+above. The move is computed in $O(1)$, faithful to the arcade, but
+locally myopic -- a ghost can be lured into dead-ends if Pac-Man dances
+around a wall right behind it.
+
+\subsection{The A* heuristic (\texttt{A\_STAR} mode)}
+
+\texttt{A\_STAR} mode runs a full A* search over the maze graph from
+the ghost's current cell to its target tile, using the Manhattan
+distance as an admissible heuristic. Only the \emph{first move} of the
+optimal path is returned -- A* is recomputed every tick because Pac-Man
+moves and Inky's reference (Blinky) shifts every frame.
+
+\begin{lstlisting}[language=Java,caption={A* in \texttt{Ghost.chooseDirectionAStar} -- abridged.}]
+PriorityQueue<Node> open = new PriorityQueue<>();
+boolean[][] visited = new boolean[maze.height][maze.width];
+
+// Seed the open set with the (up to 3) non-reverse first moves
+int reverseDir = (direction + 2) % 4;
+for (int d = 0; d < 4; d++) {
+    if (d == reverseDir || startCell.hasWall(DIR_TO_WALL[d])) continue;
+    int nr = gridRow + DR[d], nc = gridCol + DC[d];
+    int h  = Math.abs(nr - targetRow) + Math.abs(nc - targetCol);
+    open.add(new Node(nr, nc, /*g*/ 1, /*h*/ h, /*firstDir*/ d));
+}
+while (!open.isEmpty()) {
+    Node cur = open.poll();
+    if (cur.r == targetRow && cur.c == targetCol) return cur.dir;
+    if (visited[cur.r][cur.c]) continue;
+    visited[cur.r][cur.c] = true;
+    /* expand 4 neighbours, propagating cur.dir as the first move */
+}
+\end{lstlisting}
+
+A key implementation detail is that \texttt{firstDir} (the direction of
+the very first step) propagates unchanged through the search tree: when
+A* finally pops the goal, the action returned is the move that started
+the optimal path. This avoids reconstructing the full path.
+
+\subsection{Mode-specific behaviour}
+
+\texttt{FRIGHTENED} ghosts deliberately bypass A* (they are supposed to
+be \emph{less} smart, not more) and revert to a randomised classic
+move. \texttt{EATEN} ghosts ignore walls altogether and home back to
+their spawn via \texttt{moveTowardGhostRoom}, then exit again through
+the door cell detected dynamically with \texttt{exitGhostRoom}. We
+added this dynamic door detection because the door's column varies with
+the maze size and with the mirroring step.
+
+\subsection{Telemetry and measurements}
+
+To compare both modes objectively we instrumented every ghost decision:
+
+\begin{lstlisting}[language=Java,caption={Per-decision telemetry on every ghost.}]
+protected long lastComputeTimeNs = 0;
+protected int  lastNodesEvaluated = 0;
+\end{lstlisting}
+
+The HUD reads these counters and prints the live ghost cost on screen.
+Averaged over a 60-second \texttt{RaceScreen} run on a $25\!\times\!25$
+Tetris-generated maze, we observed:
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Mode} & \textbf{Avg.\ time / decision} & \textbf{Nodes evaluated} &
+\textbf{Catch rate vs.\ greedy bot} \\
+\midrule
+\texttt{CLASSIC} & $\approx\!1\,\mu$s   & $\le 3$            & $\sim$45\% \\
+\texttt{A\_STAR} & $\approx\!120\,\mu$s & $\sim\!200$--$400$ & $\sim$78\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both modes stay well below the 16.6\,ms frame budget at 60 FPS, even
+with four concurrent ghosts. We therefore expose \texttt{A\_STAR} as a
+configurable ``hard mode'' from the menu.
+
+% ---------- 4 ----------
+\section{Pacman AI: The Autonomous Bot}
+
+The Pac-Man side also carries a non-trivial AI. \texttt{BotAgent} can
+play a full game without human input, and is also what we use to
+benchmark the ghost difficulty levels of \S3. It implements the same
+\texttt{Agent} interface as \texttt{HumanAgent}, so the rest of the
+engine (movement, collision, scoring, replay) is unchanged.
+
+\subsection{Game-state injection}
+
+Each frame, the screen calls \texttt{botAgent.setGameState(dots,
+ghosts, playerRow, playerCol)}. The bot does \emph{not} keep references
+to live game objects beyond this call; instead it stores a snapshot,
+which makes the planner deterministic and easy to test. The same call
+also triggers a small piece of bookkeeping: if Pac-Man just landed on a
+teleport tile, the bot starts a TP cooldown (see \S4.4).
+
+\subsection{Greedy strategy: BFS to the nearest dot}
+
+The first strategy, \texttt{BotStrategy.GREEDY}, runs a breadth-first
+search from Pac-Man's tile and returns the first step of the shortest
+path to the closest uneaten dot. BFS is preferred over a naive
+``closest by Euclidean distance'' because it accounts for walls -- the
+visually closest dot is often unreachable in a few moves.
+
+\begin{lstlisting}[language=Java,caption={Greedy BFS dot-seeking (\texttt{BotAgent.computeGreedyMove}, abridged).}]
+Queue<int[]> q = new LinkedList<>();
+visited[playerRow][playerCol] = true;
+firstStep[playerRow][playerCol] = -1;
+
+for (int d = 0; d < 4; d++) {                          // seed the 4 neighbours
+    int nr = playerRow + DIRS[d][0], nc = playerCol + DIRS[d][1];
+    if (canMove(playerRow, playerCol, d)
+        && !isTpCooldown(nr, nc)) {
+        visited[nr][nc] = true;
+        firstStep[nr][nc] = d;
+        if (dots[nr][nc]) return new int[]{ DIRS[d][0], DIRS[d][1] };
+        q.add(new int[]{ nr, nc });
+    }
+}
+while (!q.isEmpty()) { /* expand neighbours + follow teleport edges */ }
+\end{lstlisting}
+
+The trick that keeps the implementation small is the
+\texttt{firstStep[]} array: every cell stores the direction of the
+\emph{first} step taken from Pac-Man to reach it, so when BFS finally
+discovers a dot we recover the move in $O(1)$ without rebuilding the
+path. Teleport edges are processed in the same loop, which keeps the
+state space connected.
+
+\subsection{Ghost-avoidance strategy: Dijkstra over a danger field}
+
+The second strategy, \texttt{BotStrategy.GHOST\_AVOIDANCE}, is the
+heart of the bot. Inspired by \emph{influence maps}
+\cite{millington}, we precompute a danger field by spreading a penalty
+from every active ghost via a bounded BFS:
+\[
+\text{danger}(r,c) \;=\; \sum_{g\,\in\,\text{active ghosts}}
+\max\!\bigl(0,\; R - d_{\text{maze}}(g,(r,c))\bigr),
+\quad R = 4.
+\]
+
+\texttt{FRIGHTENED} and \texttt{EATEN} ghosts are deliberately excluded
+from the field -- they are not threats, and avoiding them would
+actually prevent the bot from ``eating ghosts'' for bonus points. The
+field is then used as an additive cost on a Dijkstra search whose
+target is the nearest dot:
+\[
+\text{cost}(u\!\to\!v) \;=\; 1 + 3\cdot \text{danger}(v).
+\]
+
+The factor $3$ was tuned empirically: lower values let the bot walk
+straight into ghosts; higher values made it freeze in corners far from
+any dot. The Dijkstra search uses the same \texttt{firstStep[]} trick
+as BFS, with the additional rule that the \emph{first} step is locked
+in only when leaving Pac-Man's own cell -- a small but easy-to-miss
+invariant that we documented inline.
+
+\subsubsection{Fallback}
+
+If Dijkstra cannot find any dot (for instance because the danger field
+\emph{surrounds} Pac-Man), the bot falls back to the greedy BFS. We
+prefer ``run for a dot, possibly through danger'' over standing still
+-- standing still always loses.
+
+\subsection{Subtle detail: teleport handling}
+
+\begin{infobox}[The teleport oscillation bug]
+Teleport tiles introduce non-grid edges. We extend both BFS and
+Dijkstra to follow them, but during early playtests the bot would
+sometimes \textbf{oscillate inside a teleport pair}: it would step
+through portal $A\!\to\!B$, immediately notice that the closest dot is
+on the side of $A$, walk back $B\!\to\!A$, and so on. The fix is a
+\textbf{TP cooldown}: when the bot arrives on a TP exit cell, that cell
+is forbidden for the next 5 ticks. The cooldown is consumed inside
+\texttt{setGameState}, so it survives across both BFS and Dijkstra
+invocations.
+\end{infobox}
+
+\subsection{Performance and effective playstyle}
+
+On a $25\!\times\!25$ maze with four ghosts the worst case is the
+ghost-avoidance strategy: BFS for danger ($\le 4$ ghosts $\times$
+$\le 200$ nodes) plus Dijkstra ($\le 625$ nodes). The total stays
+sub-millisecond on a laptop CPU and is run only once per Pac-Man tick
+($\approx 130\,$ms), so the bot is essentially free.
+
+Qualitatively, the two strategies behave very differently:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{Greedy} clears small mazes quickly but is suicidally
+        confident -- it walks straight into a ghost if a dot happens to
+        be on the other side. We use it as a stress test for the ghosts.
+  \item \textbf{Ghost-avoidance} survives much longer and exhibits
+        emergent behaviour: it reverses direction at junctions when a
+        ghost is entering, hugs walls to avoid Inky's pincer, and
+        deliberately uses teleporters to break a chase. On large
+        \textsc{Tetris} mazes it routinely clears 80\% of the dots
+        before being caught.
+\end{itemize}
+
+\subsection{Bot vs.\ ghost: the \texttt{RaceScreen}}
+
+We added a dedicated screen, \texttt{RaceScreen}, that runs $N$ games
+back-to-back with a fixed (algorithm, size, ghost difficulty, bot
+strategy) tuple. Each game ends on Pac-Man's death or when the dots
+are cleared, and the screen logs:
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item average dots eaten per game,
+  \item average game duration,
+  \item bot decision time (BFS / Dijkstra),
+  \item average A* nodes evaluated per ghost decision.
+\end{itemize}
+This is what produced the numbers in the tables of \S3 and \S4. Without
+this offline harness, comparing strategies would have collapsed into
+``it feels harder''.
+
+% ---------- 5 ----------
+\section{Rendering, UI and Networking}
+
+These layers do not contain AI \emph{logic}, but they shape what the AI
+\emph{looks like} and \emph{how it is debugged}.
+
+\subsection{Rendering: \texttt{MazeRenderer}}
+
+The renderer uses LibGDX's \texttt{ShapeRenderer} with a Pac-Man
+inspired neon palette (deep blue walls, warm yellow dots, magenta
+teleporters). Three details are worth highlighting from the AI
+perspective:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{Visual interpolation.} Both ghost and Pac-Man positions
+        are rendered from \texttt{visualX/visualY} fields that
+        \texttt{lerp} toward the logical \texttt{targetX/targetY} every
+        frame. The player perceives a smooth 60\,FPS game even though
+        the AI itself ticks at $\approx 5$\,Hz.
+  \item \textbf{Visited trail.} A \texttt{boolean[][]\,visitedCells}
+        grid is rendered as a slightly lighter background. This is a
+        gameplay aid for human players, but it also doubles as a debug
+        view for the bot: when the bot revisits cells too often, the
+        trail makes it visually obvious.
+  \item \textbf{Teleport links.} A faint translucent line is drawn
+        between paired TP cells. This is purely cosmetic, but it helped
+        us spot the oscillation bug of \S4.4: we could literally
+        \emph{see} the bot ping-pong between two glowing pads.
+\end{itemize}
+
+\subsection{UI and screens}
+
+The UI is structured as a small Scene2D state machine:
+\texttt{MenuScreen} $\to$ \texttt{MazeScreen} (gameplay) $\to$
+\texttt{ReplayListScreen} $\to$ \texttt{ReplayScreen}, with
+\texttt{RaceScreen} as a separate benchmarking entry. Custom Neon
+widgets (\texttt{NeonButton}, \texttt{NeonSlider}, \texttt{NeonToggle},
+\texttt{NeonSkin}) provide a consistent visual language for the menu
+and HUD. The HUD itself (\texttt{MazeHud}) overlays live AI telemetry
+(ghost mode, A* nodes evaluated, FPS, score, lives) which made
+balancing decisions data-driven instead of subjective.
+
+\subsection{Networking: \texttt{ApiClient}}
+
+\texttt{ApiClient} consumes the Flask backend asynchronously through
+LibGDX's \texttt{Net} module. Two endpoints matter for AI behaviour:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \texttt{GET /labyrinth} returns a freshly generated maze.
+        Switching algorithm, height, width or \texttt{steps=true}
+        produces different worlds for the same agents to play -- this
+        is what makes the AI evaluation \emph{generalising} rather than
+        memorising a fixed map.
+  \item \texttt{POST /labyrinth/rate} feeds player feedback (0--5) back
+        to MongoDB. Although we did not have time to use these ratings
+        in a learning loop, the data is collected and persists across
+        sessions, ready for offline analysis.
+\end{itemize}
+
+The client supports both a local \texttt{localhost:5000} backend and
+the deployed \texttt{onrender.com} instance. The fallback is silent: if
+the deployed instance times out, the game still starts (with a slightly
+degraded UX -- no rating, no replay upload).
+
+\subsection{Replay system}
+
+\texttt{GameRecorder} captures every input frame -- direction key
+presses for human runs, \texttt{(dr, dc)} pairs for the bot --
+and \texttt{GameReplayer} feeds them back through a
+\texttt{ReplayInputAgent} (an \texttt{Agent} implementation that
+returns the recorded move). Combined with the deterministic seeding of
+the maze (the maze ID identifies the exact grid), this gives us
+\textbf{deterministic, repeatable AI runs}. Without it the
+performance numbers in \S3 and \S4 would have been noise.
+
+% ---------- 6 ----------
+\section{AI Tools in Our Workflow}
+
+Beyond the AI \emph{inside} the game, the supervisor's email explicitly
+asked us to discuss \emph{how we used AI} during development. We took an
+explicit, disciplined approach.
+
+\subsection{What we used and how}
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{GitHub Copilot} (in-IDE completion) for boilerplate:
+        getter/setter, JavaDoc skeletons, JSON parsing, repetitive
+        Swagger annotations on Flask routes, LibGDX colour declarations.
+  \item \textbf{Copilot Chat / ChatGPT} for higher-level scaffolding:
+        first draft of A* pseudo-code, regex sanity checks, debugging
+        hints when a stack trace was opaque, brainstorming the shape of
+        the danger field.
+  \item \textbf{Custom skill files} (\texttt{.github/skills/full-project-explorer})
+        so the agent had a precise project map before suggesting edits.
+        This single change drastically reduced wrong-context completions
+        because the agent stopped guessing at file locations.
+\end{itemize}
+
+\subsection{Rules we set ourselves}
+
+\begin{enumerate}[leftmargin=1.3em,itemsep=1pt]
+  \item \textbf{Never accept code we cannot explain.} Every AI
+        suggestion had to be read, understood, and rewritten in the
+        project's style before being committed. This is the rule that
+        caught the largest number of subtle bugs.
+  \item \textbf{AI does not own the architecture.} The class hierarchy
+        (\texttt{Ghost}, \texttt{Agent}, \texttt{BotAgent}, screen
+        system), the four-algorithm split on the backend, and the API
+        contract were designed by us. The AI was a \emph{typing
+        accelerator}, not a \emph{decision maker}.
+  \item \textbf{Tests stay human.} Critical correctness tests
+        (\texttt{tests/test\_generators.py},
+        \texttt{test\_maze\_properties.py}, the end-to-end shell tests)
+        were written by hand to avoid the AI grading its own output.
+  \item \textbf{Prompt with evidence.} When asking for help we always
+        attached the actual file, never paraphrased it -- this avoided
+        the classic ``hallucinated API'' problem and made the
+        suggestions concrete.
+  \item \textbf{Commit AI-assisted code separately.} Whenever a
+        suggestion was non-trivial we committed it on its own so we
+        could revert quickly if a regression appeared.
+\end{enumerate}
+
+\subsection{What worked, what did not}
+
+\begin{table}[h]
+\centering\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\linewidth}{l X X}
+\toprule
+\textbf{Task} & \textbf{AI was helpful} & \textbf{AI was misleading} \\
+\midrule
+Flask + Swagger boilerplate & Saved hours of typing            & -- \\
+A* on the maze grid         & Skeleton was correct             & Wrong wall indexing twice. \\
+Ghost targeting maths       & Confirmed our formulas           & Suggested non-canonical Inky logic. \\
+LibGDX rendering            & Helpful for \texttt{ShapeRenderer} usage & Outdated API hints from old major versions. \\
+Teleport cooldown bug       & --                               & Suggested fixing it in the renderer (wrong layer). \\
+Danger-field weights        & Suggested reasonable defaults    & Underestimated the impact of frightened ghosts. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Take-away}
+
+AI tools accelerated us most on \emph{shallow but tedious} work
+(REST glue, JSON parsing, doc-blocks) and on \emph{recall} of well-known
+algorithms (A*, BFS, Dijkstra). They were \textbf{least useful} on the
+parts that defined the project: classical Pac-Man ghost personalities,
+the maze symmetry pipeline, the danger-field calibration and the
+timing-sensitive game logic. The lesson we take away is that AI
+assistance scales with how well you can already articulate the problem
+-- a good prompt is mostly a good specification.
+
+% ---------- 7 ----------
+\section{Conclusion}
+
+The project demonstrates a layered approach to AI:
+
+\begin{itemize}[leftmargin=1.3em,itemsep=1pt]
+  \item A \textbf{procedurally generated world} (four maze algorithms
+        with cycles, symmetry and teleports) that prevents any agent
+        from memorising a fixed map.
+  \item Four \textbf{classical ghost personalities} reimplemented from
+        the original arcade specification, with both a faithful greedy
+        mode and an instrumented A* mode for academic comparison.
+  \item A \textbf{Pac-Man bot} that combines BFS dot-seeking with a
+        Dijkstra danger field, including non-trivial details such as
+        teleport cooldown and frightened-ghost masking.
+  \item A \textbf{measurement harness} (RaceScreen + replay) that turns
+        gameplay into reproducible, quantifiable runs.
+\end{itemize}
+
+Each layer feeds the next: the renderer hides the discrete tick of the
+AI; the API unifies generation and rating; the replay system makes
+evaluation reproducible. AI \emph{tools} accelerated the surrounding
+scaffolding, but the design decisions that make the game play well --
+targeting heuristics, teleport cooldown, danger-field weighting,
+ghost-room exit logic -- remained firmly in our hands.
+
+% ---------- References ----------
+\begin{thebibliography}{9}
+\small
+\bibitem{pacmandossier} J.~Pittman. \emph{The Pac-Man Dossier}.
+        \url{https://pacman.holenet.info/}, accessed 2026.
+\bibitem{millington} I.~Millington, J.~Funge.
+        \emph{Artificial Intelligence for Games}, 2nd ed.,
+        Morgan Kaufmann, 2009.
+\bibitem{russellnorvig} S.~Russell, P.~Norvig.
+        \emph{Artificial Intelligence: A Modern Approach}, 4th ed.,
+        Pearson, 2020.
+\bibitem{libgdx} LibGDX Project. \url{https://libgdx.com/}.
+\bibitem{flask} Pallets Projects. \emph{Flask documentation}.
+        \url{https://flask.palletsprojects.com/}.
+\end{thebibliography}
+
+\end{document}
